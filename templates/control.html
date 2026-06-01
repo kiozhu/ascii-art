@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Control Panel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #00ff41;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+    }
+
+    .header {
+      border-bottom: 2px solid #00ff41;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #000;
+    }
+    .header h1 {
+      font-size: 1.2rem;
+      text-shadow: 0 0 10px #00ff41;
+    }
+    .header .status-row {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      border: 1px solid #00ff4144;
+      border-radius: 4px;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .dot-green { background: #00ff41; box-shadow: 0 0 6px #00ff41; }
+    .dot-yellow { background: #ffff00; box-shadow: 0 0 6px #ffff00; }
+    .dot-red { background: #ff0040; box-shadow: 0 0 6px #ff0040; }
+    .dot-gray { background: #666; }
+
+    /* Main grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      height: calc(100vh - 60px);
+    }
+
+    /* Left panel — Manual Display */
+    .panel {
+      padding: 20px;
+      border-right: 1px solid #00ff4122;
+      overflow-y: auto;
+    }
+    .panel-title {
+      font-size: 0.8rem;
+      color: #00ff41;
+      opacity: 0.6;
+      letter-spacing: 3px;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-group label {
+      display: block;
+      font-size: 0.7rem;
+      opacity: 0.6;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+    .input-group textarea,
+    .input-group input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #00ff4144;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 4px;
+      outline: none;
+      resize: vertical;
+    }
+    .input-group textarea:focus,
+    .input-group input:focus {
+      border-color: #00ff41;
+      box-shadow: 0 0 10px rgba(0,255,65,0.2);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn-green {
+      background: #00ff41;
+      color: #000;
+      box-shadow: 0 0 15px rgba(0,255,65,0.3);
+    }
+    .btn-green:hover { box-shadow: 0 0 25px rgba(0,255,65,0.5); }
+    .btn-outline {
+      background: transparent;
+      color: #00ff41;
+      border: 1px solid #00ff41;
+    }
+    .btn-outline:hover { background: #00ff4122; }
+    .btn-red {
+      background: transparent;
+      color: #ff0040;
+      border: 1px solid #ff004066;
+    }
+    .btn-red:hover { background: #ff004022; }
+
+    /* Upload area */
+    .upload-zone {
+      border: 2px dashed #00ff4133;
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 15px;
+    }
+    .upload-zone:hover {
+      border-color: #00ff41;
+      background: #00ff4108;
+    }
+    .upload-zone.dragover {
+      border-color: #00ff41;
+      background: #00ff4115;
+    }
+    .upload-zone input { display: none; }
+    .upload-icon { font-size: 2rem; margin-bottom: 10px; }
+    .upload-text { font-size: 0.8rem; opacity: 0.6; }
+
+    /* Media preview */
+    #media-preview {
+      display: none;
+      border: 1px solid #00ff4144;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #111;
+    }
+    #media-preview img,
+    #media-preview video {
+      max-width: 100%;
+      max-height: 200px;
+      display: block;
+      margin: 0 auto 10px;
+      border-radius: 4px;
+    }
+    .media-info {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      text-align: center;
+    }
+
+    /* Right panel — TikTok */
+    .panel-right {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tiktok-connect-box {
+      border: 1px solid #00ff4144;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .tiktok-connect-box input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #00ff4144;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 4px;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .tiktok-connect-box input:focus {
+      border-color: #00ff41;
+    }
+
+    .logs-box {
+      flex: 1;
+      border: 1px solid #00ff4144;
+      border-radius: 8px;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .logs-header {
+      padding: 10px 15px;
+      border-bottom: 1px solid #00ff4122;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      color: #00ff41;
+      opacity: 0.6;
+    }
+    .logs-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      font-size: 0.75rem;
+      max-height: 400px;
+    }
+    .log-line {
+      padding: 3px 0;
+      border-bottom: 1px solid #ffffff08;
+      line-height: 1.4;
+    }
+    .log-line.INFO { color: #00ff41; }
+    .log-line.EVENT { color: #00ccff; }
+    .log-line.ERROR { color: #ff0040; }
+    .log-line .ts { opacity: 0.5; margin-right: 8px; }
+
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid #00ff4122;
+      background: #000;
+    }
+    .tab {
+      padding: 12px 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      letter-spacing: 1px;
+    }
+    .tab:hover { background: #00ff4111; }
+    .tab.active { border-bottom-color: #00ff41; color: #00ff41; }
+
+    /* Settings panel */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .settings-section {
+      border: 1px solid #00ff4122;
+      border-radius: 8px;
+      padding: 15px;
+      background: #000;
+    }
+    .settings-section-title {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      opacity: 0.6;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #00ff4122;
+      padding-bottom: 8px;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .setting-label {
+      font-size: 0.75rem;
+      color: #00ff41;
+    }
+    .setting-desc {
+      font-size: 0.65rem;
+      opacity: 0.4;
+      margin-top: 2px;
+    }
+    select.setting-select {
+      background: #111;
+      border: 1px solid #00ff4144;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      padding: 5px 8px;
+      border-radius: 4px;
+      outline: none;
+      min-width: 140px;
+    }
+    select.setting-select:focus {
+      border-color: #00ff41;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      background: #00ff4122;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+      width: 100px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #00ff41;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    input[type="color"] {
+      -webkit-appearance: none;
+      border: 1px solid #00ff4144;
+      border-radius: 4px;
+      width: 40px;
+      height: 28px;
+      padding: 2px;
+      background: #111;
+      cursor: pointer;
+    }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 22px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #333;
+      border-radius: 22px;
+      transition: 0.2s;
+    }
+    .toggle-slider:before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #666;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: #00ff4144; }
+    .toggle input:checked + .toggle-slider:before {
+      background: #00ff41;
+      transform: translateX(22px);
+    }
+    .setting-value {
+      font-size: 0.7rem;
+      color: #00ccff;
+      min-width: 35px;
+      text-align: right;
+    }
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.7rem;
+    }
+    .info-box {
+      font-size: 0.7rem;
+      opacity: 0.5;
+      border: 1px solid #00ff4122;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>▓ ASCII CONTROL PANEL v1.0</h1>
+  <div class="status-row">
+    <div class="status-badge">
+      <div class="status-dot dot-green" id="server-dot"></div>
+      <span id="server-status">SERVER: OK</span>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot dot-gray" id="tiktok-dot"></div>
+      <span id="tiktok-status">TIKTOK: OFFLINE</span>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot dot-green" id="ws-dot"></div>
+      <span id="ws-status">WS: CONNECTED</span>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" onclick="showTab('manual')">📦 MANUAL DISPLAY</div>
+  <div class="tab" onclick="showTab('tiktok')">🎵 TIKTOK</div>
+  <div class="tab" onclick="showTab('settings')">⚙️ SETTINGS</div>
+  <div class="tab" onclick="showTab('preview')">👁️ PREVIEW</div>
+</div>
+
+<div class="main-grid">
+  <!-- Left: Manual Display -->
+  <div class="panel" id="panel-manual">
+    <div class="panel-title">▓ MANUAL DISPLAY BOX</div>
+
+    <div class="input-group">
+      <label>TEXT / ASCII CONTENT</label>
+      <textarea id="text-input" rows="6" placeholder="Masukkan teks untuk ditampilkan di overlay..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="sendText()">▶ DISPLAY TEXT</button>
+      <button class="btn btn-outline" onclick="sendBigText()">◻ DEFAULT</button>
+      <button class="btn btn-red" onclick="clearDisplay()">✕ CLEAR</button>
+    </div>
+
+    <div style="margin: 20px 0; border-top: 1px solid #00ff4122; padding-top: 20px;">
+      <div class="panel-title">▓ MEDIA UPLOAD (GAMBAR / GIF / VIDEO)</div>
+
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept="image/*,video/*,.gif" onchange="handleFile(this.files[0])">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">Klik untuk upload gambar, GIF, atau video</div>
+      </div>
+
+      <div id="media-preview">
+        <img id="preview-img" style="display:none">
+        <video id="preview-video" style="display:none" controls></video>
+        <div class="media-info" id="media-info"></div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-green" onclick="sendMedia()">▶ DISPLAY MEDIA</button>
+          <button class="btn btn-red" onclick="clearMedia()">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: TikTok + Logs -->
+  <div class="panel" id="panel-tiktok">
+    <div class="panel-title">▓ TIKTOK LIVE CONNECTION</div>
+
+    <div class="tiktok-connect-box">
+      <label style="font-size:0.7rem;opacity:0.6;display:block;margin-bottom:6px;">ROOM ID / LIVE URL</label>
+      <input type="text" id="room-id" placeholder="Masukkan TikTok Live Room ID atau URL...">
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="connectTikTok()">🔗 CONNECT</button>
+        <button class="btn btn-red" onclick="disconnectTikTok()">✕ DISCONNECT</button>
+        <button class="btn btn-outline" onclick="simulateComment()">🧪 TEST</button>
+      </div>
+    </div>
+
+    <div class="logs-box">
+      <div class="logs-header">
+        <span>📋 SYSTEM LOGS</span>
+        <span id="log-count">0 entries</span>
+      </div>
+      <div class="logs-content" id="logs-content"></div>
+    </div>
+  </div>
+
+  <!-- Preview panel -->
+  <div class="panel" id="panel-preview" style="grid-column:span 2; display:none;">
+    <div class="panel-title">▓ LIVE PREVIEW (OBS TARGET)</div>
+    <iframe id="preview-frame" src="/" style="width:100%;height:500px;border:1px solid #00ff4144;border-radius:8px;"></iframe>
+  </div>
+
+  <!-- Settings panel -->
+  <div class="panel" id="panel-settings" style="grid-column:span 2; display:none;">
+    <div class="panel-title">▓ OVERLAY SETTINGS</div>
+    <div class="settings-grid">
+
+      <!-- FONT SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎨 Font Style</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Text Font</div>
+            <div class="setting-desc">Pyfiglet font untuk text biasa</div>
+          </div>
+          <select id="cfg-font" class="setting-select" onchange="applySettings()">
+            <option value="ansi_shadow">ansi_shadow</option>
+            <option value="blocky">blocky</option>
+            <option value="starwars">starwars</option>
+            <option value="banner3">banner3</option>
+            <option value="banner4">banner4</option>
+            <option value="banner">banner</option>
+            <option value="rounded">rounded</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Default Font</div>
+            <div class="setting-desc">Font default untuk overlay</div>
+          </div>
+          <select id="cfg-bigfont" class="setting-select" onchange="applySettings()">
+            <option value="banner">banner</option>
+            <option value="banner3">banner3</option>
+            <option value="banner4">banner4</option>
+            <option value="rounded">rounded</option>
+            <option value="blocky">blocky</option>
+            <option value="starwars">starwars</option>
+            <option value="ansi_shadow">ansi_shadow</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- COLOR SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🌈 Colors</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Color Mode</div>
+            <div class="setting-desc">Solid = 1 warna, Gradient = gradasi 3 warna (Hermes style)</div>
+          </div>
+          <select id="cfg-colormode" class="setting-select" onchange="applySettings()">
+            <option value="solid">● Solid</option>
+            <option value="gradient">◐ Gradient (3-Warna)</option>
+          </select>
+        </div>
+
+        <!-- Solid color picker -->
+        <div class="setting-row" id="solid-color-row">
+          <div>
+            <div class="setting-label">Text Color</div>
+            <div class="setting-desc">Warna teks di overlay</div>
+          </div>
+          <div class="color-row">
+            <input type="color" id="cfg-fgcolor" value="#00ff41" onchange="applySettings()">
+            <span class="setting-value" id="cfg-fgcolor-val">#00ff41</span>
+          </div>
+        </div>
+
+        <!-- Gradient color pickers -->
+        <div id="gradient-color-row" style="display:none;">
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">🟨 Top Color</div>
+              <div class="setting-desc">Bagian atas huruf</div>
+            </div>
+            <div class="color-row">
+              <input type="color" id="cfg-gradtop" value="#FFD700" onchange="applySettings()">
+              <span class="setting-value" id="cfg-gradtop-val">#FFD700</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">🟧 Mid Color</div>
+              <div class="setting-desc">Bagian tengah huruf</div>
+            </div>
+            <div class="color-row">
+              <input type="color" id="cfg-gradmid" value="#00E5FF" onchange="applySettings()">
+              <span class="setting-value" id="cfg-gradmid-val">#00E5FF</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">🟫 Bottom Color</div>
+              <div class="setting-desc">Bagian bawah &amp; outline</div>
+            </div>
+            <div class="color-row">
+              <input type="color" id="cfg-gradbot" value="#FF1493" onchange="applySettings()">
+              <span class="setting-value" id="cfg-gradbot-val">#FF1493</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Background Color</div>
+            <div class="setting-desc">Warna background overlay</div>
+          </div>
+          <div class="color-row">
+            <input type="color" id="cfg-bgcolor" value="#000000" onchange="applySettings()">
+            <span class="setting-value" id="cfg-bgcolor-val">#000000</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Matrix Color</div>
+            <div class="setting-desc">Warna karakter matrix rain</div>
+          </div>
+          <div class="color-row">
+            <input type="color" id="cfg-matrixcolor" value="#00ff41" onchange="applySettings()">
+            <span class="setting-value" id="cfg-matrixcolor-val">#00ff41</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ASCII COLOR MODE SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🖼️ ASCII Image Mode</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Color Mode</div>
+            <div class="setting-desc">Grayscale = mono hijau, Color = warna asli per karakter</div>
+          </div>
+          <select id="cfg-asciicolor" class="setting-select" onchange="applySettings()">
+            <option value="mono">🟢 Grayscale</option>
+            <option value="color">🌈 Full Color</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Resolution</div>
+            <div class="setting-desc">Lebar karakter ASCII (lebih tinggi = lebih detail)</div>
+          </div>
+          <div class="color-row">
+            <input type="range" id="cfg-asciicols" min="60" max="250" value="150"
+              oninput="document.getElementById('cfg-asciicols-val').textContent=this.value;applySettings()">
+            <span class="setting-value" id="cfg-asciicols-val">150</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MATRIX SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🏷️ Live Event Badge</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Badge Mode</div>
+            <div class="setting-desc">Pinned = selalu visible, Live = hanya saat event</div>
+          </div>
+          <select id="cfg-badge-mode" onchange="applySettings()" style="background:#111;border:1px solid #00ff4144;color:#00ff41;padding:4px 8px;border-radius:4px;font-size:0.75rem;">
+            <option value="live">📌 Live Only</option>
+            <option value="pinned">📍 Pinned Always</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- GIFT SETTINGS SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎁 Gift Display</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Gift Animation</div>
+            <div class="setting-desc">Aktifkan animasi gift TikTok</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cfg-gift-enabled" checked onchange="applySettings()">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Sound</div>
+            <div class="setting-desc">Play sound saat gift masuk</div>
+          </div>
+          <select id="cfg-gift-sound" class="setting-select" onchange="applySettings()">
+            <option value="on">🔔 On</option>
+            <option value="off">🔕 Off</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Typing Speed</div>
+            <div class="setting-desc">Kecepatan ketikan pesan (ms)</div>
+          </div>
+          <div class="number-row">
+            <input type="range" id="cfg-gift-typing-speed" min="10" max="150" value="50" oninput="document.getElementById('gift-typing-speed-val').textContent=this.value+'ms';applySettings()">
+            <span class="setting-value" id="gift-typing-speed-val">50ms</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Blink Duration</div>
+            <div class="setting-desc">Durasi kedip antar animasi (ms)</div>
+          </div>
+          <div class="number-row">
+            <input type="range" id="cfg-gift-blink-duration" min="200" max="2000" value="800" oninput="document.getElementById('gift-blink-val').textContent=this.value+'ms';applySettings()">
+            <span class="setting-value" id="gift-blink-val">800ms</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Display Duration</div>
+            <div class="setting-desc">Lama gift art tampil (ms)</div>
+          </div>
+          <div class="number-row">
+            <input type="range" id="cfg-gift-display-duration" min="2000" max="15000" value="5000" step="500" oninput="document.getElementById('gift-display-val').textContent=this.value+'ms';applySettings()">
+            <span class="setting-value" id="gift-display-val">5000ms</span>
+          </div>
+        </div>
+        <div class="setting-row" style="flex-direction:column;gap:8px;">
+          <div>
+            <div class="setting-label">Thank You Message</div>
+            <div class="setting-desc">Template pesan. Gunakan {username}, {gift_emoji}, {gift_name}</div>
+          </div>
+          <textarea id="cfg-gift-message" class="setting-textarea" rows="2" placeholder="Terima kasih @{username} untuk {gift_emoji} {gift_name}!" onchange="applySettings()">Terima kasih @{username} untuk {gift_emoji} {gift_name}!</textarea>
+        </div>
+        <!-- Gift Test Buttons -->
+        <div class="setting-row" style="flex-direction:column;gap:8px;margin-top:8px;">
+          <div class="setting-label">🎁 Test Gift Animation</div>
+          <div class="btn-row" style="flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="testGiftRandom()">🎲 Test Gift</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('rose')">🌹 Rose</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('crown')">👑 Crown</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('heart')">❤️ Heart</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('diamond')">💎 Diamond</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('dragon')">🐉 Dragon</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('fortune')">🍀 Fortune</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('plane')">✈️ Plane</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('music')">🎵 Music</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('star')">⭐ Star</button>
+            <button class="btn btn-outline btn-sm" onclick="testGift('rocket')">🚀 Rocket</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🟢 Matrix Rain</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Enable Matrix Rain</div>
+            <div class="setting-desc">Tampilkan efek matrix di background</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cfg-matrix" onchange="applySettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Matrix Speed</div>
+            <div class="setting-desc">Kecepatan jatuh</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="cfg-matrixspeed" min="1" max="20" value="10" oninput="document.getElementById('cfg-matrixspeed-val').textContent=this.value;applySettings()">
+            <span class="setting-value" id="cfg-matrixspeed-val">10</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DISPLAY SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">⏱️ Display Duration</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Auto-Clear Timer</div>
+            <div class="setting-desc">Detik sebelum overlay bersih (0=off)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="cfg-duration" min="0" max="60" value="0" oninput="document.getElementById('cfg-duration-val').textContent=this.value+'s';applySettings()">
+            <span class="setting-value" id="cfg-duration-val">0s</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Font Size</div>
+            <div class="setting-desc">Ukuran font di overlay (px)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="cfg-fontsize" min="8" max="32" value="14" oninput="document.getElementById('cfg-fontsize-val').textContent=this.value+'px';applySettings()">
+            <span class="setting-value" id="cfg-fontsize-val">14px</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Padding</div>
+            <div class="setting-desc">Jarak teks dari tepi overlay</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="cfg-padding" min="0" max="50" value="20" oninput="document.getElementById('cfg-padding-val').textContent=this.value+'px';applySettings()">
+            <span class="setting-value" id="cfg-padding-val">20px</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREENSHOT SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">📷 Screenshot</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Mode</div>
+            <div class="setting-desc">Auto = auto capture gift/display; Manual = tombol saja</div>
+          </div>
+          <select id="cfg-ss-mode" class="setting-select" onchange="applySettings()">
+            <option value="auto">Auto Capture</option>
+            <option value="manual">Manual Only</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Aspect Ratio</div>
+            <div class="setting-desc">Bentuk file screenshot</div>
+          </div>
+          <select id="cfg-ss-ratio" class="setting-select" onchange="applySettings()">
+            <option value="square">Square (1:1)</option>
+            <option value="vertical">Vertical (9:16)</option>
+            <option value="horizontal">Horizontal (16:9)</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Show Capture UI</div>
+            <div class="setting-desc">Tampilkan flash / indicator saat auto capture</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cfg-ss-flash" checked onchange="applySettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- RECORD SECTION -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎬 Screen Record</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Duration</div>
+            <div class="setting-desc">Durasi rekaman (detik)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" id="cfg-rec-duration" min="3" max="30" value="5" oninput="document.getElementById('cfg-rec-duration-val').textContent=this.value+'s';applySettings()">
+            <span class="setting-value" id="cfg-rec-duration-val">5s</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Mode</div>
+            <div class="setting-desc">Auto = record gift/display; Manual = tombol saja</div>
+          </div>
+          <select id="cfg-rec-mode" class="setting-select" onchange="applySettings()">
+            <option value="auto">Auto Capture</option>
+            <option value="manual">Manual Only</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Settings actions -->
+    <div style="margin-top:20px; display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-green" onclick="applySettings()">✅ APPLY SETTINGS</button>
+      <button class="btn btn-outline" onclick="resetSettings()">↺ RESET</button>
+      <div class="info-box" id="settings-status" style="flex:1;margin:0;">
+        💡 Perubahan langsung kirim ke overlay via WebSocket
+      </div>
+    </div>
+
+    <!-- Command reference -->
+    <div style="margin-top:20px;">
+      <div class="settings-section-title">📡 Telegram Commands</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+        <div class="info-box">`/ascii display <text>` — Text biasa</div>
+        <div class="info-box">`/ascii block <text>` — Pixel block</div>
+        <div class="info-box">`/ascii big <text>` — Big ASCII</div>
+        <div class="info-box">`/ascii half <text>` — Half-block</div>
+        <div class="info-box">`/ascii image` — Reply dgn foto</div>
+        <div class="info-box">`/ascii clear` — Bersihkan</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+const SERVER = window.location.hostname + ":5050";
+const socket = io(`http://${SERVER}`, {
+  transports: ["polling"],
+  upgrade: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000
+});
+
+// ── Status ─────────────────────────────────────────────────
+let currentMedia = null;
+
+socket.on("connect", () => {
+  document.getElementById("ws-dot").className = "status-dot dot-green";
+  document.getElementById("ws-status").textContent = "WS: CONNECTED";
+  addLog("INFO", "WebSocket connected");
+});
+
+socket.on("disconnect", () => {
+  document.getElementById("ws-dot").className = "status-dot dot-red";
+  document.getElementById("ws-status").textContent = "WS: DISCONNECTED";
+  addLog("ERROR", "WebSocket disconnected");
+});
+
+socket.on("status_update", (data) => {
+  if (data.tiktok_status) {
+    const dot = document.getElementById("tiktok-dot");
+    const txt = document.getElementById("tiktok-status");
+    if (data.tiktok_status === "CONNECTED") {
+      dot.className = "status-dot dot-green";
+      txt.textContent = "TIKTOK: LIVE";
+      addLog("EVENT", "TikTok connected");
+    } else if (data.tiktok_status === "CONNECTING") {
+      dot.className = "status-dot dot-yellow";
+      txt.textContent = "TIKTOK: CONNECTING...";
+    } else {
+      dot.className = "status-dot dot-red";
+      txt.textContent = "TIKTOK: OFFLINE";
+    }
+  }
+});
+
+socket.on("display_update", (data) => {
+  addLog("EVENT", `Display updated: ${data.type}`);
+});
+
+socket.on("tiktok_comment", (data) => {
+  addLog("EVENT", `@${data.username}: ${data.comment}`);
+});
+
+// ── Gift Test ───────────────────────────────────────────────
+const RANDOM_NAMES = ["Kiozhu","Dewi123","Bintang","Rizky99","MayaF","Doni_X","Sarah_B","RajaIisan","LunaStar","Fajar_"];
+
+function testGiftRandom() {
+  const types = ["rose","crown","heart","diamond","dragon","fortune","plane","music","star","rocket"];
+  const giftType = types[Math.floor(Math.random() * types.length)];
+  const username = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+  fetch(`/api/gift/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ gift_type: giftType, username: username })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) addLog("EVENT", `🎁 Test: ${giftType} → @${username}`);
+    else addLog("ERROR", `Gift test failed: ${d.error}`);
+  });
+}
+
+function testGift(giftType) {
+  const types = ["rose","crown","heart","diamond","dragon","fortune","plane","music","star","rocket"];
+  const username = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+  fetch(`/api/gift/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ gift_type: giftType, username: username })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) addLog("EVENT", `🎁 Test: ${giftType} → @${username}`);
+    else addLog("ERROR", `Gift test failed: ${d.error}`);
+  });
+}
+
+// ── Display Actions ────────────────────────────────────────
+function sendText() {
+  const text = document.getElementById("text-input").value;
+  if (!text.trim()) return;
+  fetch(`${window.location.origin}/api/display/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: text, type: "text", original_text: text })
+  });
+  addLog("EVENT", "Text sent to overlay");
+}
+
+function sendBigText() {
+  const text = document.getElementById("text-input").value;
+  if (!text.trim()) return;
+  fetch(`${window.location.origin}/api/display/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: text.toUpperCase(), type: "bigtext" })
+  });
+  addLog("EVENT", "Big ASCII text sent");
+}
+
+function sendBlock() {
+  const text = document.getElementById("text-input").value;
+  if (!text.trim()) return;
+  fetch(`${window.location.origin}/api/display/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: text.toUpperCase(), type: "block" })
+  });
+  addLog("EVENT", "Block text sent");
+}
+
+function sendHalf() {
+  const text = document.getElementById("text-input").value;
+  if (!text.trim()) return;
+  fetch(`${window.location.origin}/api/display/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: text.toUpperCase(), type: "half" })
+  });
+  addLog("EVENT", "Half-block text sent");
+}
+
+function clearDisplay() {
+  fetch(`${window.location.origin}/api/display/clear`, { method: "POST" });
+  addLog("EVENT", "Display cleared");
+}
+
+// ── File Upload ────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const zone = document.getElementById("upload-zone");
+  const preview = document.getElementById("media-preview");
+  const imgEl = document.getElementById("preview-img");
+  const vidEl = document.getElementById("preview-video");
+  const infoEl = document.getElementById("media-info");
+
+  if (file.type.startsWith("video/") || file.name.endsWith(".gif")) {
+    vidEl.src = URL.createObjectURL(file);
+    vidEl.style.display = "block";
+    imgEl.style.display = "none";
+    infoEl.textContent = `🎬 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  } else {
+    imgEl.src = URL.createObjectURL(file);
+    imgEl.style.display = "block";
+    vidEl.style.display = "none";
+    infoEl.textContent = `🖼️ ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  }
+
+  preview.style.display = "block";
+  zone.style.display = "none";
+
+  // Chain: preview + read as base64
+  handleMediaFile(file);
+}
+
+function handleMediaFile(file) {
+  const maxImg = 10 * 1024 * 1024;  // 10MB for images
+  const maxVid = 50 * 1024 * 1024;   // 50MB for videos
+  const maxSize = file.type.startsWith('video/') ? maxVid : maxImg;
+
+  if (file.size > maxSize) {
+    const limit = file.type.startsWith('video/') ? '50MB' : '10MB';
+    addLog("ERROR", `File too large (max ${limit}): ${file.name}`);
+    return;
+  }
+
+  addLog("INFO", `Loading: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
+  const reader = new FileReader();
+  reader.onerror = () => addLog("ERROR", "FileReader failed");
+  reader.onload = (e) => {
+    currentMedia = e.target.result;
+    addLog("OK", `Media ready: ${file.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+function sendMedia() {
+  if (!currentMedia) return;
+  addLog("INFO", "Sending media to server...");
+  fetch(`${window.location.origin}/api/display/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: currentMedia, type: "image" })
+  }).then(r => {
+    if (r.ok) {
+      addLog("OK", "Render request sent ✓");
+    } else {
+      addLog("ERROR", `Server error: ${r.status}`);
+    }
+  }).catch(e => addLog("ERROR", `Network error: ${e.message}`));
+}
+
+function clearMedia() {
+  currentMedia = null;
+  document.getElementById("media-preview").style.display = "none";
+  document.getElementById("upload-zone").style.display = "block";
+  document.getElementById("preview-img").src = "";
+  document.getElementById("preview-video").src = "";
+}
+
+// ── TikTok ─────────────────────────────────────────────────
+function connectTikTok() {
+  const roomId = document.getElementById("room-id").value;
+  if (!roomId) { alert("Masukkan Room ID dulu"); return; }
+  fetch(`${window.location.origin}/api/tiktok/connect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ room_id: roomId })
+  });
+  addLog("EVENT", `Connecting to TikTok room: ${roomId}`);
+}
+
+function disconnectTikTok() {
+  fetch(`${window.location.origin}/api/tiktok/disconnect`, { method: "POST" });
+  addLog("INFO", "TikTok disconnected");
+}
+
+function simulateComment() {
+  const names = ["CodeMaster", "AI_Fan", "CyberNerd", "MatrixLover", "TechGeek", "ByteRunner", "NeonDev"];
+  const comments = ["keren banget!", "subs first!", "gila ini tools", "how made this??", "🔥🔥🔥"];
+  const name = names[Math.floor(Math.random() * names.length)];
+  const comment = comments[Math.floor(Math.random() * comments.length)];
+  fetch(`${window.location.origin}/api/tiktok/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: name, comment })
+  });
+  addLog("EVENT", `Simulated: @${name}: ${comment}`);
+}
+
+// ── Settings ─────────────────────────────────────────────────
+function applySettings() {
+  // Toggle solid/gradient UI
+  const mode = document.getElementById("cfg-colormode").value;
+  document.getElementById("solid-color-row").style.display = mode === "solid" ? "flex" : "none";
+  document.getElementById("gradient-color-row").style.display = mode === "gradient" ? "block" : "none";
+
+  const settings = {
+    font:       document.getElementById("cfg-font").value,
+    bigfont:    document.getElementById("cfg-bigfont").value,
+    fgcolor:    document.getElementById("cfg-fgcolor").value,
+    bgcolor:    document.getElementById("cfg-bgcolor").value,
+    matrixcolor:document.getElementById("cfg-matrixcolor").value,
+    matrix:     document.getElementById("cfg-matrix").checked,
+    matrixspeed:parseInt(document.getElementById("cfg-matrixspeed").value),
+    duration:   parseInt(document.getElementById("cfg-duration").value),
+    fontsize:   parseInt(document.getElementById("cfg-fontsize").value),
+    padding:    parseInt(document.getElementById("cfg-padding").value),
+    ascii_color_mode: document.getElementById("cfg-asciicolor").value,
+    ascii_cols: parseInt(document.getElementById("cfg-asciicols").value),
+    badge_mode: document.getElementById("cfg-badge-mode").value,
+    colormode:  mode,
+    gradtop:    document.getElementById("cfg-gradtop").value,
+    gradmid:    document.getElementById("cfg-gradmid").value,
+    gradbot:    document.getElementById("cfg-gradbot").value,
+    // Gift settings
+    gift_enabled: document.getElementById("cfg-gift-enabled").checked,
+    gift_sound: document.getElementById("cfg-gift-sound").value,
+    gift_typing_speed: parseInt(document.getElementById("cfg-gift-typing-speed").value),
+    gift_blink_duration: parseInt(document.getElementById("cfg-gift-blink-duration").value),
+    gift_display_duration: parseInt(document.getElementById("cfg-gift-display-duration").value),
+    gift_message: document.getElementById("cfg-gift-message").value,
+    // Screenshot settings
+    ss_mode: document.getElementById("cfg-ss-mode").value,
+    ss_ratio: document.getElementById("cfg-ss-ratio").value,
+    ss_flash: document.getElementById("cfg-ss-flash").checked,
+    // Record settings
+    rec_duration: parseInt(document.getElementById("cfg-rec-duration").value),
+    rec_mode: document.getElementById("cfg-rec-mode").value,
+  };
+
+  // Update color labels
+  document.getElementById("cfg-fgcolor-val").textContent  = settings.fgcolor;
+  document.getElementById("cfg-bgcolor-val").textContent  = settings.bgcolor;
+  document.getElementById("cfg-matrixcolor-val").textContent = settings.matrixcolor;
+  document.getElementById("cfg-gradtop-val").textContent = settings.gradtop;
+  document.getElementById("cfg-gradmid-val").textContent = settings.gradmid;
+  document.getElementById("cfg-gradbot-val").textContent = settings.gradbot;
+
+  // Send to server
+  fetch(`${window.location.origin}/api/settings/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings)
+  }).catch(() => {});
+
+  // Also emit via socket for instant effect
+  if (socket && socket.connected) {
+    socket.emit("settings_update", settings);
+  }
+
+  addLog("EVENT", `Settings applied → ${settings.font} | ${settings.fgcolor} | matrix:${settings.matrix}`);
+  document.getElementById("settings-status").textContent = "✅ Settings sent to overlay";
+}
+
+function resetSettings() {
+  document.getElementById("cfg-font").value       = "ansi_shadow";
+  document.getElementById("cfg-bigfont").value    = "banner";
+  document.getElementById("cfg-fgcolor").value    = "#00ff41";
+  document.getElementById("cfg-bgcolor").value    = "#000000";
+  document.getElementById("cfg-matrixcolor").value= "#00ff41";
+  document.getElementById("cfg-matrix").checked   = false;
+  document.getElementById("cfg-matrixspeed").value= "10";
+  document.getElementById("cfg-duration").value   = "0";
+  document.getElementById("cfg-fontsize").value   = "14";
+  document.getElementById("cfg-padding").value    = "20";
+  document.getElementById("cfg-colormode").value  = "solid";
+  document.getElementById("cfg-gradtop").value   = "#FFD700";
+  document.getElementById("cfg-gradmid").value   = "#00E5FF";
+  document.getElementById("cfg-gradbot").value   = "#FF1493";
+  // Gift defaults
+  document.getElementById("cfg-gift-enabled").checked = true;
+  document.getElementById("cfg-gift-sound").value = "on";
+  document.getElementById("cfg-gift-typing-speed").value = "50";
+  document.getElementById("cfg-gift-blink-duration").value = "800";
+  document.getElementById("cfg-gift-display-duration").value = "5000";
+  document.getElementById("cfg-gift-message").value = "Terima kasih @{username} untuk {gift_emoji} {gift_name}!";
+  document.getElementById("gift-typing-speed-val").textContent = "50ms";
+  document.getElementById("gift-blink-val").textContent = "800ms";
+  document.getElementById("gift-display-val").textContent = "5000ms";
+  // Screenshot defaults
+  document.getElementById("cfg-ss-mode").value = "auto";
+  document.getElementById("cfg-ss-ratio").value = "square";
+  document.getElementById("cfg-ss-flash").checked = true;
+  // Record defaults
+  document.getElementById("cfg-rec-duration").value = 5;
+  document.getElementById("cfg-rec-duration-val").textContent = "5s";
+  document.getElementById("cfg-rec-mode").value = "auto";
+  // show/hide rows
+  document.getElementById("solid-color-row").style.display = "flex";
+  document.getElementById("gradient-color-row").style.display = "none";
+  applySettings();
+  document.getElementById("settings-status").textContent = "↺ Settings reset to default";
+  addLog("INFO", "Settings reset to default");
+}
+
+// ── Logs ───────────────────────────────────────────────────
+function addLog(level, msg) {
+  const box = document.getElementById("logs-content");
+  const ts = new Date().toLocaleTimeString("en-GB", {hour12:false});
+  const div = document.createElement("div");
+  div.className = `log-line ${level}`;
+  div.innerHTML = `<span class="ts">${ts}</span>[${level}] ${msg}`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  document.getElementById("log-count").textContent = box.children.length + " entries";
+}
+
+// ── Tabs ────────────────────────────────────────────────────
+function showTab(tab) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
+  if (tab === "manual") {
+    document.querySelector(".tab:nth-child(1)").classList.add("active");
+    document.getElementById("panel-manual").style.display = "block";
+  } else if (tab === "tiktok") {
+    document.querySelector(".tab:nth-child(2)").classList.add("active");
+    document.getElementById("panel-tiktok").style.display = "block";
+  } else if (tab === "settings") {
+    document.querySelector(".tab:nth-child(3)").classList.add("active");
+    document.getElementById("panel-settings").style.display = "block";
+    document.getElementById("panel-settings").style.gridColumn = "span 2";
+  } else {
+    document.querySelector(".tab:last-child").classList.add("active");
+    document.getElementById("panel-preview").style.display = "block";
+    document.getElementById("panel-preview").style.gridColumn = "span 2";
+  }
+}
+
+// Init
+addLog("INFO", "Control panel loaded");
+addLog("INFO", `Server: ${SERVER}`);
+</script>
+</body>
+</html>

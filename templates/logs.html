@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Logs Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #00ff41;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+    }
+
+    .header {
+      border-bottom: 2px solid #00ff41;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #000;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header h1 {
+      font-size: 1rem;
+      text-shadow: 0 0 10px #00ff41;
+      letter-spacing: 2px;
+    }
+    .header-right {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    .stat-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      border: 1px solid #00ff4144;
+      border-radius: 4px;
+    }
+    .stat-val {
+      color: #00ff41;
+      font-weight: 700;
+      text-shadow: 0 0 8px #00ff41;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .dot-green { background: #00ff41; box-shadow: 0 0 6px #00ff41; }
+    .dot-yellow { background: #ffff00; box-shadow: 0 0 6px #ffff00; }
+    .dot-red { background: #ff0040; box-shadow: 0 0 6px #ff0040; }
+    .dot-gray { background: #444; }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-bottom: 1px solid #00ff4122;
+    }
+    .stat-card {
+      padding: 20px;
+      text-align: center;
+      border-right: 1px solid #00ff4122;
+    }
+    .stat-card:last-child { border-right: none; }
+    .stat-card .label {
+      font-size: 0.6rem;
+      opacity: 0.5;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 900;
+      color: #00ff41;
+      text-shadow: 0 0 20px #00ff41;
+    }
+
+    /* Logs table */
+    .logs-table {
+      padding: 20px;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      background: transparent;
+      border: 1px solid #00ff4144;
+      color: #00ff41;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { background: #00ff4122; }
+    .filter-btn.active { background: #00ff41; color: #000; }
+
+    .log-entry {
+      display: grid;
+      grid-template-columns: 100px 60px 80px 1fr;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #ffffff08;
+      font-size: 0.8rem;
+      align-items: start;
+    }
+    .log-entry:hover { background: #00ff4108; }
+    .log-entry .ts { opacity: 0.5; font-size: 0.75rem; }
+    .log-entry .lvl {
+      font-weight: 700;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 3px;
+      text-align: center;
+    }
+    .log-entry .lvl.INFO { background: #00ff4122; color: #00ff41; }
+    .log-entry .lvl.EVENT { background: #0066ff22; color: #00ccff; }
+    .log-entry .lvl.ERROR { background: #ff004022; color: #ff0040; }
+    .log-entry .src { opacity: 0.5; font-size: 0.75rem; }
+    .log-entry .msg { word-break: break-all; }
+    .log-entry.new { animation: flash 0.5s ease; }
+    @keyframes flash {
+      0% { background: #00ff4133; }
+      100% { background: transparent; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>▓ ASCII LOGS DASHBOARD</h1>
+  <div class="header-right">
+    <div class="stat-box">
+      <div class="status-dot dot-green" id="server-dot"></div>
+      <span>SERVER</span>
+    </div>
+    <div class="stat-box">
+      <div class="status-dot dot-gray" id="tiktok-dot"></div>
+      <span>TIKTOK</span>
+    </div>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="label">SERVER STATUS</div>
+    <div class="value" id="stat-server">RUNNING</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">EVENTS</div>
+    <div class="value" id="stat-events">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">TIKTOK</div>
+    <div class="value" id="stat-tiktok">OFFLINE</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">UPTIME</div>
+    <div class="value" id="stat-uptime">00:00</div>
+  </div>
+</div>
+
+<div class="logs-table">
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterLog('all')">ALL</button>
+    <button class="filter-btn" onclick="filterLog('INFO')">INFO</button>
+    <button class="filter-btn" onclick="filterLog('EVENT')">EVENT</button>
+    <button class="filter-btn" onclick="filterLog('ERROR')">ERROR</button>
+  </div>
+
+  <div id="logs-container"></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+const SERVER = window.location.hostname + ":5050";
+const socket = io(`http://${SERVER}`, { transports: ["websocket", "polling"] });
+
+let startTime = Date.now();
+let currentFilter = "all";
+
+socket.on("connect", () => {
+  document.getElementById("server-dot").className = "status-dot dot-green";
+  addLogEntry({ ts: timeStr(), level: "INFO", source: "SERVER", msg: "WebSocket connected" });
+});
+
+socket.on("disconnect", () => {
+  document.getElementById("server-dot").className = "status-dot dot-red";
+  addLogEntry({ ts: timeStr(), level: "ERROR", source: "SERVER", msg: "WebSocket disconnected" });
+});
+
+socket.on("status_update", (data) => {
+  const tiktokDot = document.getElementById("tiktok-dot");
+  const tiktokStat = document.getElementById("stat-tiktok");
+  if (data.tiktok_status === "CONNECTED") {
+    tiktokDot.className = "status-dot dot-green";
+    tiktokStat.textContent = "LIVE";
+    tiktokStat.style.color = "#00ff41";
+    addLogEntry({ ts: timeStr(), level: "INFO", source: "TIKTOK", msg: "Connected to live" });
+  } else if (data.tiktok_status === "CONNECTING") {
+    tiktokDot.className = "status-dot dot-yellow";
+    tiktokStat.textContent = "CONNECTING";
+    tiktokStat.style.color = "#ffff00";
+  } else if (data.tiktok_status === "DISCONNECTED") {
+    tiktokDot.className = "status-dot dot-red";
+    tiktokStat.textContent = "OFFLINE";
+    tiktokStat.style.color = "#ff0040";
+    addLogEntry({ ts: timeStr(), level: "ERROR", source: "TIKTOK", msg: "Disconnected" });
+  }
+});
+
+socket.on("tiktok_comment", (data) => {
+  document.getElementById("stat-events").textContent = data.event_num;
+  addLogEntry({
+    ts: data.timestamp ? new Date(data.timestamp).toLocaleTimeString("en-GB", {hour12:false}) : timeStr(),
+    level: "EVENT",
+    source: "TIKTOK",
+    msg: `Comment from @${data.username}: ${data.comment}`
+  });
+});
+
+socket.on("display_update", (data) => {
+  addLogEntry({ ts: timeStr(), level: "EVENT", source: "DISPLAY", msg: `Manual content: ${data.type}` });
+});
+
+function addLogEntry(log) {
+  const container = document.getElementById("logs-container");
+  const div = document.createElement("div");
+  div.className = `log-entry new ${log.level}`;
+  div.innerHTML = `
+    <span class="ts">${log.ts}</span>
+    <span class="lvl ${log.level}">${log.level}</span>
+    <span class="src">${log.source}</span>
+    <span class="msg">${esc(log.msg)}</span>
+  `;
+  container.prepend(div);
+  setTimeout(() => div.classList.remove("new"), 500);
+  updateFilter();
+}
+
+function filterLog(level) {
+  currentFilter = level;
+  document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+  updateFilter();
+}
+
+function updateFilter() {
+  document.querySelectorAll(".log-entry").forEach(el => {
+    if (currentFilter === "all" || el.classList.contains(currentFilter)) {
+      el.style.display = "";
+    } else {
+      el.style.display = "none";
+    }
+  });
+}
+
+function timeStr() {
+  return new Date().toLocaleTimeString("en-GB", {hour12:false});
+}
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Uptime ticker
+setInterval(() => {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  document.getElementById("stat-uptime").textContent =
+    `${String(h).padStart(2,"0")}:${String(m%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+}, 1000);
+</script>
+</body>
+</html>

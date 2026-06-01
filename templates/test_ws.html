@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WS Test</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+<h1>Socket.IO WS Test</h1>
+<pre id="log"></pre>
+<script>
+const log = document.getElementById('log');
+function l(msg) {
+  log.textContent += msg + '\n';
+  console.log(msg);
+}
+
+const socket = io('http://43.153.202.49:5050', { 
+  transports: ['polling', 'websocket'],
+  forceNode: false
+});
+
+socket.on('connect', () => {
+  l('Connected! ID: ' + socket.id);
+});
+
+socket.on('display_update', (data) => {
+  l('GOT display_update: ' + JSON.stringify(data).substring(0, 100));
+});
+
+socket.on('message', (data) => {
+  l('GOT message: ' + JSON.stringify(data));
+});
+
+socket.on('connect_error', (err) => {
+  l('ERROR: ' + err.message);
+});
+
+socket.on('disconnect', () => {
+  l('Disconnected');
+});
+
+// Fallback: catch ALL events
+socket.onAny((eventName, ...args) => {
+  l('ONANY: ' + eventName + ' args:' + JSON.stringify(args).substring(0,50));
+});
+
+l('Socket state: ' + socket.connected);
+</script>
+</body>
+</html>

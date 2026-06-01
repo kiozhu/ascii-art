@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #00ff41;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Matrix rain background */
+    #matrix-bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    /* Overlay container */
+    .overlay-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+    }
+
+    /* Top bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .logo-box {
+      font-size: 0.7rem;
+      color: #00ff41;
+      opacity: 0.6;
+      text-shadow: 0 0 10px #00ff41;
+      line-height: 1.4;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.65rem;
+      opacity: 0.7;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #333;
+      box-shadow: 0 0 6px currentColor;
+    }
+    .status-dot.green { background: #00ff41; box-shadow: 0 0 8px #00ff41; }
+    .status-dot.yellow { background: #ffff00; box-shadow: 0 0 8px #ffff00; }
+    .status-dot.red { background: #ff0040; box-shadow: 0 0 8px #ff0040; }
+
+    /* Main content area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+    }
+
+    /* Main content area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    /* Manual Display Box — borderless, no background, auto-fit */
+    #manual-box {
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: transparent;
+      max-width: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
+    #manual-box .ascii-content {
+      font-size: clamp(0.5rem, 1.2vw, 1rem);
+      line-height: 1.1;
+      color: #00ff41;
+      text-shadow: 0 0 10px #00ff41;
+      white-space: pre;
+      font-family: 'Courier New', monospace;
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-width: none;
+      max-height: 100vh;
+    }
+    #manual-box .placeholder {
+      font-size: 0.8rem;
+      opacity: 0.4;
+    }
+    .loading-dots {
+      font-family: 'Courier New', monospace;
+      color: #00ff41;
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #00ff41;
+      display: flex;
+      gap: 4px;
+    }
+    .loading-dots .dot {
+      animation: dotPulse 1.2s infinite ease-in-out;
+    }
+    .loading-dots .dot.dot2 { animation-delay: 0.2s; }
+    .loading-dots .dot.dot3 { animation-delay: 0.4s; }
+    @keyframes dotPulse {
+      0%, 80% { opacity: 0.2; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Gift animation — single centered column layout */
+    #gift-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: auto;
+      box-sizing: border-box;
+    }
+    #gift-typing-text {
+      font-family: 'Courier New', monospace;
+      white-space: pre;
+      line-height: 1.2;
+      font-size: clamp(0.5rem, 1.2vw, 0.95rem);
+      text-align: center;
+      color: #00ff41;
+      text-shadow: 0 0 12px #00ff41, 0 0 25px #00ff41;
+    }
+    #gift-art-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 4px;
+      overflow: hidden;
+      box-sizing: border-box;
+      max-width: 100vw;
+    }
+    #gift-art-display {
+      font-family: 'Courier New', monospace;
+      white-space: pre;
+      line-height: 1.05;
+      text-align: center;
+      font-size: clamp(0.6rem, 1.5vw, 1.1rem);
+      letter-spacing: 0;
+      max-width: 100vw;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #gift-username {
+      font-family: 'Courier New', monospace;
+      font-size: clamp(1.4rem, 4vw, 3rem);
+      font-weight: bold;
+      color: #FFD700;
+      letter-spacing: 3px;
+      white-space: pre;
+      line-height: 1.1;
+      text-align: center;
+      text-shadow: 0 0 20px #FFD700, 0 0 40px #FF4500;
+      max-width: 100vw;
+      overflow-x: auto;
+    }
+    @keyframes _gFloat {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-6px); }
+    }
+    @keyframes _gPulse {
+      from { filter: brightness(1) drop-shadow(0 0 8px currentColor); }
+      to   { filter: brightness(1.4) drop-shadow(0 0 22px currentColor); }
+    }
+    @keyframes _uGlitch {
+      0%,100%  { text-shadow: 0 0 25px #FFD700, 0 0 50px #FF4500; transform: scale(1) skewX(0deg); }
+      20%      { text-shadow: -4px 0 #0ff, 4px 0 #f0f; transform: scale(1.03) skewX(-3deg); }
+      40%      { text-shadow: 0 0 40px #FFD700; transform: scale(1.06) skewX(0deg); }
+      60%      { text-shadow: 4px 0 #0ff, -4px 0 #f0f; transform: scale(1.03) skewX(3deg); }
+      80%      { text-shadow: 0 0 35px #FF4500; transform: scale(1.04); }
+    }
+
+    /* Live Event Box */
+    #event-box {
+      border: 1px solid #00ff4133;
+      padding: 20px 40px;
+      min-width: 400px;
+      text-align: center;
+      background: rgba(0,255,65,0.03);
+    }
+    #event-box .event-label {
+      font-size: 0.6rem;
+      color: #00ff41;
+      opacity: 0.5;
+      margin-bottom: 10px;
+      letter-spacing: 3px;
+    }
+    #event-box .username-display {
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      font-weight: 900;
+      color: #00ff41;
+      text-shadow: 0 0 30px #00ff41, 0 0 60px #00ff41;
+      letter-spacing: 4px;
+      transition: opacity 0.5s;
+    }
+    #event-box .comment-preview {
+      font-size: 0.7rem;
+      opacity: 0.5;
+      margin-top: 8px;
+      max-width: 500px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.6rem;
+      opacity: 0.5;
+      width: 100%;
+    }
+    .event-counter {
+      color: #00ff41;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="matrix-bg"></canvas>
+
+<div class="overlay-container">
+  <div class="main-content">
+    <!-- Gift animation — single centered column -->
+    <div class="gift-container">
+      <div id="gift-box">
+        <div id="gift-typing-text"></div>
+        <div id="gift-art-area" style="display:none;">
+          <div id="gift-art-display"></div>
+          <div id="gift-username"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Manual display box for text/image/video (non-gift) -->
+    <div id="manual-box">
+      <div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Live event badge — bottom left -->
+<div id="event-badge" style="position:fixed; bottom:16px; left:16px; z-index:10; background:rgba(0,0,0,0.75); border:1px solid #00ff4144; border-radius:8px; padding:10px 14px; font-family:'Courier New',monospace; display:none; max-width:280px;">
+  <div style="font-size:0.55rem; color:#00ff41; opacity:0.5; letter-spacing:2px;">● LIVE</div>
+  <div id="badge-username" style="font-size:0.9rem; font-weight:900; color:#00ff41; text-shadow:0 0 10px #00ff41; letter-spacing:1px; margin-bottom:4px;">@---</div>
+  <div id="badge-comment" style="font-size:0.7rem; color:#ffffff; opacity:0.75; line-height:1.3; overflow:hidden; max-height:2.6em;">---</div>
+</div>
+
+<div id="ws-indicator" style="position:fixed; top:12px; right:16px; z-index:10; display:flex; align-items:center; gap:5px; font-size:0.6rem; color:#00ff41; font-family:'Courier New',monospace;">
+  <div class="status-dot" id="ws-dot" style="width:6px;height:6px;border-radius:50%;background:#333;box-shadow:0 0 6px currentColor;"></div>
+  <span id="ws-status" style="opacity:0.6;">---</span>
+  <button id="reconnect-btn" onclick="manualReconnect()" style="background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.55rem;padding:2px 6px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Reconnect">⟳</button>
+  <button id="ss-btn" onclick="takeScreenshot()" style="background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.6rem;padding:2px 5px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Screenshot">📷</button>
+  <button id="rec-btn" onclick="toggleRecord()" style="background:none;border:1px solid #ff4444;color:#ff4444;font-size:0.6rem;padding:2px 5px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Record">📹</button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const SERVER = window.location.hostname + ":5050";
+const socket = io('http://' + SERVER, {
+  transports: ['polling'],
+  upgrade: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000
+});
+
+// ── Matrix Rain ───────────────────────────────────────────
+const canvas = document.getElementById("matrix-bg");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*(){}[]|;:',.<>?/\\~`+-=_";
+const fontSize = 14;
+let columns = Math.floor(canvas.width / fontSize);
+let drops = Array(columns).fill(1);
+
+function drawMatrix() {
+  ctx.fillStyle = "rgba(0,0,0,0.05)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff41";
+  ctx.font = `${fontSize}px Courier New`;
+
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+
+setInterval(drawMatrix, 50);
+
+window.addEventListener("resize", () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  columns = Math.floor(canvas.width / fontSize);
+  drops = Array(columns).fill(1);
+});
+
+// ── Image → ASCII converter (browser-side Canvas) ──────────
+// mode: 'mono' = green/monochrome, 'color' = per-char RGB
+// cb(progress) called with 0-100 during rendering
+function imageToASCII(imgSrc, cols, mode, cb) {
+  if (cols === undefined) cols = 150;
+  if (mode === undefined) mode = 'mono';
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const aspect = img.height / img.width;
+      const rows = Math.floor(cols * aspect * 0.5);
+      const W = cols, H = rows;
+      const cvs = document.createElement("canvas");
+      cvs.width = W; cvs.height = H;
+      const ctx = cvs.getContext("2d");
+      console.log("[ASCII] converting", img.width+"x"+img.height, "-> canvas", W+"x"+H, "mode="+mode);
+      try {
+        ctx.drawImage(img, 0, 0, W, H);
+      } catch(e) {
+        console.error("[ASCII] drawImage failed:", e);
+        resolve("[ERROR: drawImage failed]");
+        return;
+      }
+      let id;
+      try {
+        id = ctx.getImageData(0, 0, W, H).data;
+      } catch(e) {
+        console.error("[ASCII] getImageData failed (canvas tainted?):", e);
+        resolve("[ERROR: canvas tainted - CORS issue]");
+        return;
+      }
+      // luminance → character map (6 levels: space + 5 gradient chars)
+      const chars = " ·oO#@";
+      const toChar = l => chars[Math.min(5, Math.floor((255 - l) / 51))];
+      // per-char RGB for color mode
+      const toHex = (r, g, b) => '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+      const lines = [];
+      const total = H * W;
+      let count = 0;
+      for (let i = 0; i < H; i++) {
+        const spans = [];
+        for (let j = 0; j < W; j++) {
+          const idx = (i * W + j) * 4;
+          const r = id[idx], g = id[idx+1], b = id[idx+2];
+          const lum = 0.299*r + 0.587*g + 0.114*b;
+          const ch = toChar(lum);
+          if (mode === 'color') {
+            spans.push(`<span style="color:${toHex(r,g,b)};text-shadow:none">${ch}</span>`);
+          } else {
+            spans.push(ch);
+          }
+          count++;
+        }
+        lines.push(spans.join(''));
+        // report progress every 5 rows
+        if (i % 5 === 0 && cb) cb(Math.round((count / total) * 100));
+      }
+      if (cb) cb(100);
+      resolve(lines.join('\n'));
+      console.log("[ASCII] done, lines:", lines.length);
+    };
+    img.onerror = () => {
+      console.error("imageToASCII: load failed");
+      resolve("[ERROR: failed to load image]");
+    };
+    img.src = imgSrc;
+  });
+}
+
+// ── WebSocket ─────────────────────────────────────────────
+socket.on("connect", () => {
+  document.getElementById("ws-dot").className = "status-dot green";
+  document.getElementById("ws-status").textContent = "CONNECTED";
+  document.getElementById("reconnect-btn").style.opacity = "0.3";
+  log("WebSocket connected");
+  // Fetch current settings so gradient colors load correctly on page open
+  fetch(`${location.origin}/api/settings`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.settings) {
+        socket.emit("settings_update", data.settings);
+        log("Initial settings loaded");
+      }
+    })
+    .catch(() => {});
+});
+
+socket.on("disconnect", () => {
+  document.getElementById("ws-dot").className = "status-dot red";
+  document.getElementById("ws-status").textContent = "DISCONNECTED";
+  document.getElementById("reconnect-btn").style.opacity = "1";
+});
+
+function manualReconnect() {
+  const btn = document.getElementById("reconnect-btn");
+  btn.textContent = "...";
+  btn.style.opacity = "0.4";
+  socket.connect();
+}
+
+async function takeScreenshot() {
+  const btn = document.getElementById("ss-btn");
+  btn.textContent = "...";
+  btn.style.opacity = "0.4";
+  try {
+    // Temporarily increase viewport so ASCII art renders at max size for SS.
+    // This overrides the clamp() calculations for the capture moment.
+    const origWW = window.innerWidth;
+    const origWH = window.innerHeight;
+    // Force a wider viewport so content doesn't compress (ASCII art uses vw units)
+    const captureW = Math.max(document.body.scrollWidth, window.innerWidth, origWW) + 400;
+    const captureH = Math.max(document.body.scrollHeight, window.innerHeight, origWH) + 400;
+
+    const canvas = await html2canvas(document.body, {
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#000000',
+      scale: window.devicePixelRatio || 1,
+      width: captureW,
+      height: captureH,
+      windowWidth: captureW,
+      windowHeight: captureH
+    });
+
+    // Apply aspect ratio crop
+    const ratio = window.currentSettings?.ss_ratio || 'square';
+    let croppedCanvas = canvas;
+    if (ratio !== 'none') {
+      croppedCanvas = cropToAspect(canvas, ratio);
+    }
+
+    const dataUrl = croppedCanvas.toDataURL('image/png');
+    const timestamp = Date.now();
+    const link = document.createElement('a');
+    link.download = `ascii-ss-${timestamp}.png`;
+    link.href = dataUrl;
+    link.click();
+    log('Screenshot saved');
+
+    // Flash effect
+    if (window.currentSettings?.ss_flash !== false) {
+      showFlash();
+    }
+  } catch(e) {
+    log('SS error: ' + e);
+  }
+  btn.textContent = '📷';
+  btn.style.opacity = '0.5';
+}
+
+function cropToAspect(canvas, ratio) {
+  // Use scroll dimensions so content that overflows (e.g. wide ASCII username art)
+  // is fully captured, not cropped to viewport.
+  const w = Math.max(canvas.width, document.body.scrollWidth + 400);
+  const h = Math.max(canvas.height, document.body.scrollHeight + 400);
+  let sx = 0, sy = 0, sw = w, sh = h;
+
+  if (ratio === 'square') {
+    const size = Math.min(w, h);
+    sx = (w - size) / 2;
+    sy = (h - size) / 2;
+    sw = sh = size;
+  } else if (ratio === 'vertical') {
+    // Target 9:16, crop width
+    const targetW = h * 9 / 16;
+    if (targetW < w) {
+      sx = (w - targetW) / 2;
+      sw = targetW;
+    } else {
+      const targetH = w * 16 / 9;
+      sy = (h - targetH) / 2;
+      sh = targetH;
+    }
+  } else if (ratio === 'horizontal') {
+    // Target 16:9, crop height
+    const targetH = w * 9 / 16;
+    if (targetH < h) {
+      sy = (h - targetH) / 2;
+      sh = targetH;
+    } else {
+      const targetW = h * 16 / 9;
+      sx = (w - targetW) / 2;
+      sw = targetW;
+    }
+  }
+
+  const result = document.createElement('canvas');
+  result.width = sw;
+  result.height = sh;
+  result.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  return result;
+}
+
+function showFlash() {
+  const flash = document.createElement('div');
+  flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0.7;z-index:9999;pointer-events:none;transition:opacity 0.3s';
+  document.body.appendChild(flash);
+  setTimeout(() => { flash.style.opacity = 0; }, 150);
+  setTimeout(() => flash.remove(), 500);
+}
+
+// Auto-screenshot trigger from server
+socket.on("auto_ss", () => {
+  if (window.currentSettings?.ss_mode === 'auto') {
+    takeScreenshot();
+  }
+});
+
+// ── Screen Recording ─────────────────────────────────────
+let mediaRecorder = null;
+let recordedChunks = [];
+let recTimeout = null;
+
+function toggleRecord() {
+  const btn = document.getElementById("rec-btn");
+  if (!mediaRecorder || mediaRecorder.state === "inactive") {
+    startRecording(btn);
+  } else {
+    stopRecording(btn);
+  }
+}
+
+async function startRecording(btn) {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      log("Record error: getDisplayMedia not supported in this context (try HTTPS)");
+      btn.textContent = "📹";
+      btn.style.opacity = "0.5";
+      btn.style.color = "#ff4444";
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { cursor: "always", displaySurface: "monitor" },
+      audio: false,
+      preferCurrentTab: true
+    });
+
+    recordedChunks = [];
+    const duration = (window.currentSettings?.rec_duration || 5) * 1000;
+
+    // Determine supported MIME
+    const mimeTypes = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4"
+    ];
+    let selectedMime = "";
+    for (const mime of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(mime)) {
+        selectedMime = mime;
+        break;
+      }
+    }
+    if (!selectedMime) selectedMime = "";
+
+    // Blink red while recording
+    btn.textContent = "●";
+    btn.style.opacity = "1";
+    btn.style.color = "#ff0000";
+
+    const options = selectedMime ? { mimeType: selectedMime } : {};
+    mediaRecorder = new MediaRecorder(stream, options);
+    log("Recording MIME: " + (selectedMime || "default"));
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ascii-rec-${Date.now()}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      log("Recording saved: " + (blob.size / 1024).toFixed(1) + "KB");
+      btn.textContent = "📹";
+      btn.style.opacity = "0.5";
+      btn.style.color = "#ff4444";
+    };
+    mediaRecorder.onerror = (e) => {
+      log("Recorder error: " + e.error);
+      btn.textContent = "📹";
+      btn.style.opacity = "0.5";
+    };
+
+    mediaRecorder.start(100);
+    recTimeout = setTimeout(() => {
+      log("Duration reached, stopping...");
+      stopRecording(btn);
+    }, duration);
+    log("Recording started (" + (duration / 1000) + "s)");
+  } catch(e) {
+    log("Record error: " + e.message);
+    btn.textContent = "📹";
+    btn.style.opacity = "0.5";
+    btn.style.color = "#ff4444";
+  }
+}
+
+function stopRecording(btn) {
+  if (recTimeout) { clearTimeout(recTimeout); recTimeout = null; }
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  btn.textContent = "📹";
+  btn.style.opacity = "0.5";
+  btn.style.color = "#ff4444";
+}
+
+// Auto-record trigger from server
+socket.on("auto_rec", (data) => {
+  if (window.currentSettings?.rec_mode === 'auto') {
+    const btn = document.getElementById("rec-btn");
+    setTimeout(() => startRecording(btn), 300);
+  }
+});
+
+socket.on("status_update", (data) => {
+  if (data.tiktok_status === "CONNECTED") {
+    document.getElementById("ws-dot").className = "status-dot green";
+  }
+});
+
+socket.on("display_update", (data) => {
+  const box = document.getElementById("manual-box");
+  const giftBox = document.getElementById("gift-box");
+  if (!data.content || data.type === "none") {
+    box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+    box.classList.remove("active");
+    return;
+  }
+
+  // Hide gift animation box while showing manual content
+  if (giftBox) {
+    giftBox.style.display = "none";
+  }
+
+  // Render based on content type
+  if (data.type === "image" || data.type === "gif") {
+    box.innerHTML = '<div class="ascii-content" id="conv-ascii"><em>converting image... (0%)</em></div>';
+    box.classList.add("active");
+    imageToASCII(data.content, ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
+      const el = document.getElementById("conv-ascii");
+      if (el) { el.innerHTML = `<em>converting image... (${progress}%)</em>`; }
+    }).then(ascii => {
+      const el = document.getElementById("conv-ascii");
+      if (el) { el.innerHTML = ascii; }
+    });
+  } else if (data.type === "video") {
+    box.innerHTML = '<div class="ascii-content" id="conv-ascii"><em>converting video... (0%)</em></div>';
+    box.classList.add("active");
+    const vid = document.createElement("video");
+    vid.crossOrigin = "anonymous";
+    vid.src = data.content;
+    vid.muted = true;
+    vid.onloadeddata = () => { vid.currentTime = 0.1; };
+    vid.onseeked = () => {
+      const cvs = document.createElement("canvas");
+      cvs.width = vid.videoWidth || 160;
+      cvs.height = vid.videoHeight || 90;
+      const ctx = cvs.getContext("2d");
+      ctx.drawImage(vid, 0, 0, cvs.width, cvs.height);
+      imageToASCII(cvs.toDataURL("image/png"), ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
+        const el = document.getElementById("conv-ascii");
+        if (el) { el.innerHTML = `<em>converting video frame... (${progress}%)</em>`; }
+      }).then(ascii => {
+        const el = document.getElementById("conv-ascii");
+        if (el) { el.innerHTML = ascii; }
+      });
+    };
+  } else {
+    // text, bigtext, block, half → render as ASCII/text
+    const fs = data.fontsize ? data.fontsize : 14;
+    let html = escapeHtml(data.content);
+
+    if (COLOR_MODE === 'gradient' && data.type !== 'block' && data.type !== 'half') {
+      // Count lines for gradient positioning
+      const lines = data.content.split('\n');
+      html = applyGradientToText(data.content, lines.length);
+    } else if (COLOR_MODE === 'gradient') {
+      // block/half still get a uniform color (GRAD_MID)
+      const mid = rgbStr(GRAD_MID);
+      html = `<span style="color:${mid};text-shadow:0 0 8px ${mid}">${escapeHtml(data.content)}</span>`;
+    }
+
+    box.innerHTML = `<div class="ascii-content" style="font-size:${fs}px">${html}</div>`;
+    box.classList.add("active");
+  }
+});
+
+let badgeTimer = null;
+
+socket.on("tiktok_comment", (data) => {
+  const badge = document.getElementById("event-badge");
+  const usernameEl = document.getElementById("badge-username");
+  const commentEl = document.getElementById("badge-comment");
+
+  // Show badge
+  badge.style.display = "block";
+
+  // Swap instantly to new comment (no fade for speed)
+  usernameEl.textContent = "@" + data.username.toUpperCase();
+  const comment = data.comment || "";
+  commentEl.textContent = comment.length > 50 ? comment.substring(0, 50) + "…" : comment;
+
+  // Reset 10s timer — new comments instantly replace current
+  if (badgeTimer) clearTimeout(badgeTimer);
+  badgeTimer = setTimeout(() => {
+    usernameEl.textContent = "@---";
+    commentEl.textContent = "---";
+    badge.style.display = "none";
+  }, 10000);
+
+  // Pinned mode: badge stays, no timer
+  if (BADGE_MODE === 'pinned') {
+    if (badgeTimer) { clearTimeout(badgeTimer); badgeTimer = null; }
+  }
+});
+
+// ─── GIFT QUEUE ─────────────────────────────────────────────────
+let _giftQueue = [];
+let _giftActive = false;
+
+// ═══════════════════════════════════════════════════════
+// ROBOT EYE SCENES — 4 sequential states, futuristic
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// ROBOT EYE SCENES — dual futuristic camera eyes
+// ═══════════════════════════════════════════════════════
+const ROBOT_EYES = {
+  neutral: [
+    "         ╔════════╗             ╔════════╗          ",
+    "         ║        ║             ║        ║          ",
+    "         ║   ◉    ║             ║   ◉    ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ╚════════╝             ╚════════╝          ",
+  ],
+  lookLeft: [
+    "         ╔════════╗             ╔════════╗          ",
+    "         ║        ║             ║        ║          ",
+    "         ║  ◉     ║             ║  ◉     ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ╚════════╝             ╚════════╝          ",
+  ],
+  lookRight: [
+    "         ╔════════╗             ╔════════╗          ",
+    "         ║        ║             ║        ║          ",
+    "         ║     ◉  ║             ║     ◉  ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ╚════════╝             ╚════════╝          ",
+  ],
+  close: [
+    "         ╔════════╗             ╔════════╗          ",
+    "         ║        ║             ║        ║          ",
+    "         ║ ────── ║             ║ ────── ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ║        ║             ║        ║          ",
+    "         ╚════════╝             ╚════════╝          ",
+  ],
+};
+
+const SCENE_DURATION = 1200;       // ms per robot eye scene
+const THANKS_TEXT_DURATION = 1500; // "terima kasih @username"
+const USERNAME_FINAL_DURATION = 1500; // username growing effect
+const USERNAME_ASCII_DURATION = 2000; // @username in ansi_shadow big
+
+socket.on("gift_display", (data) => {
+  _giftQueue.push(data);
+  if (!_giftActive) _processGiftQueue();
+  // Resume audio context on user gesture (handles browser autoplay policy)
+  getAudioCtx();
+});
+
+function _processGiftQueue() {
+  if (_giftQueue.length === 0) { _giftActive = false; return; }
+  _giftActive = true;
+  const data = _giftQueue.shift();
+  _playGiftAnimation(data, () => { _processGiftQueue(); });
+}
+
+function _playGiftAnimation(data, onDone) {
+  const typingEl   = document.getElementById("gift-typing-text");
+  const artArea    = document.getElementById("gift-art-area");
+  const artDisplay = document.getElementById("gift-art-display");
+  const usernameEl = document.getElementById("gift-username");
+  const giftBox    = document.getElementById("gift-box");
+
+  // Cancel all previous animations
+  if (window._giftAnimFrame) cancelAnimationFrame(window._giftAnimFrame);
+  if (window._giftTimeout)   clearTimeout(window._giftTimeout);
+  if (window._giftInterval)  clearInterval(window._giftInterval);
+  if (window._giftInterval2) clearInterval(window._giftInterval2);
+
+  // Reset state — hide manual-box, show gift elements
+  const manualBox = document.getElementById("manual-box");
+  if (manualBox) manualBox.style.display = "none";
+  typingEl.innerHTML = "";
+  artArea.style.display = "none";
+  artDisplay.innerHTML = "";
+  usernameEl.textContent = "";
+  usernameEl.style.display = "none";
+  usernameEl.style.animation = "";
+  giftBox.style.opacity = "";
+  giftBox.style.transform = "";
+  giftBox.style.filter = "";
+  giftBox.style.transition = "";
+
+  // Play gift sound if sound is enabled
+  if (data.sound !== "off") {
+    playGiftSound(data.gift_type);
+  }
+
+  const scenes = [
+    { key: "neutral",  label: "INITIALIZING" },
+    { key: "lookLeft", label: "SCANNING" },
+    { key: "lookRight", label: "SCANNING" },
+    { key: "close",    label: "PROCESSING" },
+  ];
+
+  let sceneIndex = 0;
+  const startTime = performance.now();
+  let phase = "eyes"; // eyes → thanks → final
+
+  function renderScene(key, glowColor) {
+    const lines = ROBOT_EYES[key];
+    const html = lines.map(line =>
+      `<div style="color:${glowColor};text-shadow:0 0 12px ${glowColor},0 0 25px ${glowColor};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.7rem,1.5vw,1.1rem);line-height:1.1;">${escapeHtml(line)}</div>`
+    ).join("");
+    typingEl.innerHTML = html;
+  }
+
+  function animate() {
+    const elapsed = performance.now() - startTime;
+    const totalEyesTime   = scenes.length * SCENE_DURATION;  // 4 * 1200 = 4800
+    const thanksTime      = totalEyesTime + THANKS_TEXT_DURATION;  // 4800 + 1500 = 6300
+    const finalTime       = thanksTime + USERNAME_FINAL_DURATION;   // 6300 + 1500 = 7800
+    const asciiTime       = finalTime + USERNAME_ASCII_DURATION;    // 7800 + 2000 = 9800
+
+    // ── PHASE 1: Robot eye scenes ──
+    if (elapsed < totalEyesTime) {
+      const newIndex = Math.min(Math.floor(elapsed / SCENE_DURATION), scenes.length - 1);
+      if (newIndex !== sceneIndex) { sceneIndex = newIndex; }
+      const scene = scenes[sceneIndex];
+
+      if (Math.random() < 0.05) {
+        typingEl.style.opacity = "0.3";
+        setTimeout(() => { typingEl.style.opacity = "1"; }, 50);
+      }
+
+      const html = ROBOT_EYES[scene.key].map(line =>
+        `<div style="color:#00ff41;text-shadow:0 0 12px #00ff41,0 0 25px #00ff41;font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.7rem,1.5vw,1.1rem);line-height:1.1;">${escapeHtml(line)}</div>`
+      ).join("");
+      typingEl.innerHTML = html;
+      artArea.style.display = "none";
+      window._giftAnimFrame = requestAnimationFrame(animate);
+      return;
+    }
+
+    // ── PHASE 2: "terima kasih @username" text ──
+    if (elapsed < thanksTime) {
+      artArea.style.display = "flex";
+      artArea.style.flexDirection = "column";
+      artArea.style.alignItems = "center";
+      typingEl.innerHTML = "";
+      artDisplay.innerHTML = "";
+      usernameEl.style.display = "";
+      usernameEl.style.fontFamily = "'Courier New',monospace";
+      usernameEl.style.fontSize = "clamp(1.2rem,3.5vw,2.5rem)";
+      usernameEl.style.fontWeight = "bold";
+      usernameEl.style.color = "#FFD700";
+      usernameEl.style.letterSpacing = "2px";
+      usernameEl.style.whiteSpace = "pre";
+      usernameEl.style.lineHeight = "1.3";
+      usernameEl.style.textAlign = "center";
+      usernameEl.style.textShadow = "0 0 20px #FFD700, 0 0 40px #FF4500, 0 0 60px #FF8C00";
+      usernameEl.style.animation = "_uGlitch 0.4s ease-in-out infinite alternate";
+      usernameEl.textContent = `terima kasih @${data.username}`;
+      window._giftAnimFrame = requestAnimationFrame(animate);
+      return;
+    }
+
+    // ── PHASE 3: @username growing ──
+    if (elapsed < finalTime) {
+      const fadeProgress = (elapsed - thanksTime) / USERNAME_FINAL_DURATION;
+      usernameEl.style.fontSize = `clamp(${1.2 + fadeProgress * 0.6}rem, ${3.5 + fadeProgress * 1.5}vw, ${2.5 + fadeProgress * 1.5}rem)`;
+      usernameEl.style.letterSpacing = `${2 + fadeProgress * 3}px`;
+      usernameEl.style.animation = "_uGlitch 0.6s ease-in-out infinite alternate";
+      window._giftAnimFrame = requestAnimationFrame(animate);
+      return;
+    }
+
+    // ── PHASE 4: @username in ansi_shadow big ASCII art ──
+    if (elapsed < asciiTime) {
+      usernameEl.style.display = "";
+      usernameEl.style.fontFamily = "'Courier New',monospace";
+      usernameEl.style.fontSize = "clamp(0.45rem,1.3vw,0.85rem)";
+      usernameEl.style.fontWeight = "bold";
+      usernameEl.style.color = "#FFD700";
+      usernameEl.style.letterSpacing = "0";
+      usernameEl.style.whiteSpace = "pre";
+      usernameEl.style.lineHeight = "1.15";
+      usernameEl.style.textAlign = "center";
+      usernameEl.style.textShadow = "0 0 15px #FFD700, 0 0 30px #FF8C00, 0 0 45px #FF4500";
+      usernameEl.style.animation = "_gPulse 0.5s ease-in-out infinite alternate";
+      usernameEl.style.maxWidth = "100vw";
+      usernameEl.style.overflowX = "hidden";
+      usernameEl.style.wordBreak = "keep-all";
+      usernameEl.textContent = data.username_ascii || `@${data.username}`;
+      window._giftAnimFrame = requestAnimationFrame(animate);
+      return;
+    }
+
+    // ── DONE: fade out ──
+    giftBox.style.transition = "opacity 0.4s";
+    giftBox.style.opacity = "0";
+    setTimeout(() => {
+      typingEl.innerHTML = "";
+      artArea.style.display = "none";
+      artDisplay.innerHTML = "";
+      usernameEl.textContent = "";
+      usernameEl.style.display = "none";
+      usernameEl.style.animation = "";
+      giftBox.style.opacity = "";
+      giftBox.style.transition = "";
+      if (manualBox) {
+        manualBox.style.display = "";
+        manualBox.innerHTML = `<div class="ascii-content" style="white-space:pre;font-family:'Courier New',monospace;line-height:1.15;overflow:hidden;">${data.username_ascii || '@' + data.username}</div>`;
+      }
+      onDone();
+    }, 400);
+  }
+
+  window._giftAnimFrame = requestAnimationFrame(animate);
+}
+
+function escapeHtml(text) {
+  const d = document.createElement("div");
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// Minimal Rich markup parser
+function parseRichMarkup(text) {
+  return text
+    .replace(/\[bold #([0-9A-Fa-f]{6})\]/g, (m, c) => `<span style="font-weight:bold;color:#${c};text-shadow:0 0 8px #${c}">`)
+    .replace(/\[#([0-9A-Fa-f]{6})\]/g, (m, c) => `<span style="color:#${c};text-shadow:0 0 6px #${c}">`)
+    .replace(/\[dim #([0-9A-Fa-f]{6})\]/g, (m, c) => `<span style="color:#${c};opacity:0.6">`)
+    .replace(/\[\/\]/g, '</span>');
+}
+
+// Gift sound effects using Web Audio API
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_audioCtx.state === 'suspended') {
+    _audioCtx.resume();
+  }
+  return _audioCtx;
+}
+
+function playGiftSound(giftType) {
+  try {
+    const ctx = getAudioCtx();
+    const frequencies = {
+      rose:    [523, 659, 784],
+      crown:   [392, 523, 659, 784],
+      heart:   [466, 554, 659],
+      diamond: [523, 784, 1047, 1568],
+      dragon:  [196, 247, 293, 392, 523],
+      fortune: [440, 554, 659, 880],
+      plane:   [349, 440, 523],
+      music:   [523, 587, 659, 784],
+      star:    [523, 659, 784, 1047],
+      rocket:  [262, 330, 392, 523, 659],
+    };
+    const freqs = frequencies[giftType] || [523, 784];
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.35);
+    });
+  } catch(e) {
+    // Silently ignore audio errors
+  }
+}
+
+let ASCII_COLOR_MODE = 'mono'; // 'mono' or 'color'
+let ASCII_COLS = 150;
+let SHOW_MATRIX = true;
+let BADGE_MODE = 'live'; // 'live' = only on event, 'pinned' = always visible
+let AUTO_FONT_ENABLED = false;
+
+// Gradient state — default must match server settings (gradient)
+let COLOR_MODE = 'gradient';  // 'solid' or 'gradient'
+let GRAD_TOP  = [255, 215,   0]; // #FFD700 — Bright Gold
+let GRAD_MID  = [  0, 229, 255]; // #00E5FF — Electric Cyan
+let GRAD_BOT  = [255,  20, 147]; // #FF1493 — Deep Pink
+
+// Convert hex → [r,g,b]
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return [r, g, b];
+}
+
+// Interpolate between two [r,g,b] arrays by t (0..1)
+function lerpColor(c1, c2, t) {
+  return [
+    Math.round(c1[0] + (c2[0] - c1[0]) * t),
+    Math.round(c1[1] + (c2[1] - c1[1]) * t),
+    Math.round(c1[2] + (c2[2] - c1[2]) * t),
+  ];
+}
+
+// Get gradient color at position t (0=top, 1=bottom)
+function gradientColor(t) {
+  let c1, c2;
+  if (t <= 0.5) {
+    // Top → Mid
+    c1 = GRAD_TOP; c2 = GRAD_MID;
+    t = t * 2;
+  } else {
+    // Mid → Bottom
+    c1 = GRAD_MID; c2 = GRAD_BOT;
+    t = (t - 0.5) * 2;
+  }
+  return lerpColor(c1, c2, Math.max(0, Math.min(1, t)));
+}
+
+function rgbStr(c) {
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// Apply gradient to ASCII text content (multi-line)
+function applyGradientToText(content, totalLines) {
+  const lines = content.split('\n');
+  const result = lines.map((line, i) => {
+    const t = totalLines <= 1 ? 0.5 : i / (totalLines - 1);
+    const color = rgbStr(gradientColor(t));
+    // Escape HTML then wrap in span
+    const escaped = escapeHtml(line);
+    return `<span style="color:${color};text-shadow:0 0 8px ${color}">${escaped}</span>`;
+  });
+  return result.join('\n');
+}
+socket.on("settings_update", (settings) => {
+  if (!settings) return;
+
+  // Store current settings for SS/rec access
+  if (!window.currentSettings) window.currentSettings = {};
+  Object.assign(window.currentSettings, settings);
+
+  if (settings.bgcolor)    document.body.style.background = settings.bgcolor;
+  if (settings.fgcolor)   document.getElementById("manual-box").style.color = settings.fgcolor;
+  if (settings.font)      document.getElementById("manual-box").style.fontFamily = `'${settings.font}', 'Courier New', monospace`;
+  if (settings.fontsize)   document.getElementById("manual-box").style.fontSize = settings.fontsize + "px";
+  if (settings.padding)    document.getElementById("manual-box").style.padding = settings.padding + "px";
+  if (settings.matrixcolor) {
+    MATRIX_COLOR = settings.matrixcolor;
+    ctx.fillStyle = MATRIX_COLOR;
+  }
+  if (typeof settings.matrix !== "undefined") {
+    SHOW_MATRIX = settings.matrix;
+    if (SHOW_MATRIX) { drops = Array(columns).fill(1); }
+  }
+  if (settings.matrixspeed) {
+    matrixSpeed = parseInt(settings.matrixspeed);
+  }
+  if (typeof settings.ascii_color_mode !== "undefined") {
+    ASCII_COLOR_MODE = settings.ascii_color_mode;
+  }
+  if (typeof settings.ascii_cols !== "undefined") {
+    ASCII_COLS = settings.ascii_cols;
+  }
+  if (typeof settings.badge_mode !== "undefined") {
+    BADGE_MODE = settings.badge_mode;
+    const badge = document.getElementById("event-badge");
+    if (BADGE_MODE === 'pinned') {
+      badge.style.display = "block";
+      document.getElementById("badge-username").textContent = "@---";
+      document.getElementById("badge-comment").textContent = "---";
+      document.getElementById("badge-username").style.opacity = "1";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+  // Gradient color settings
+  if (typeof settings.colormode !== "undefined") {
+    COLOR_MODE = settings.colormode;
+  }
+  if (settings.gradtop)  GRAD_TOP = hexToRgb(settings.gradtop);
+  if (settings.gradmid)  GRAD_MID = hexToRgb(settings.gradmid);
+  if (settings.gradbot)  GRAD_BOT = hexToRgb(settings.gradbot);
+
+  log("Settings applied: " + JSON.stringify(settings).substring(0,50));
+  if (typeof settings.auto_font !== "undefined") {
+    AUTO_FONT_ENABLED = settings.auto_font;
+  }
+});
+
+function log(msg) {
+  console.log(`[OVERLAY] ${msg}`);
+}
+
+// ── Font Rotate on Scroll Wheel ───────────────────────────
+const FONT_POOL = [
+  "alpha", "patorjk's_cheese", "nscript", "electronic",
+  "poison", "bigascii12", "stellar", "caligraphy", "blocky"
+];
+let fontIndex = 0;
+
+document.addEventListener("wheel", (e) => {
+  if (!AUTO_FONT_ENABLED) return;
+  e.preventDefault();
+  if (e.deltaY > 0) {
+    fontIndex = (fontIndex + 1) % FONT_POOL.length; // scroll down = next
+  } else {
+    fontIndex = (fontIndex - 1 + FONT_POOL.length) % FONT_POOL.length; // scroll up = prev
+  }
+  socket.emit("settings_update", { font: FONT_POOL[fontIndex], auto_font: true });
+  AUTO_FONT_ENABLED = true; // ensure local flag is set
+}, { passive: false });
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+*.mp4
+*.gif
+*.png
+/tmp/
+.venv/
+venv/
