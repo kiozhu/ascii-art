@@ -84,6 +84,49 @@ Copy `.env.example` to `.env` and set:
 
 ---
 
+## 🎮 Control Panel — Full Manual Control (No Telegram/TikTok Required)
+
+The system works **100% without Telegram or TikTok**. All features are accessible directly from the Control Panel.
+
+### How to Access / Cara Mengakses
+
+| Scenario | English | Indonesia |
+|----------|---------|-----------|
+| Same computer | `http://localhost:5050/control` | Buka di browser yang sama |
+| Same network | `http://192.168.x.x:5050/control` |Dari perangkat lain di jaringan yang sama |
+| Remote / publik | `http://43.153.202.49:5050/control` | Kalau server accessible dari internet |
+
+---
+
+### Features Overview / Ringkasan Fitur
+
+| Feature | English | Indonesia |
+|---------|---------|-----------|
+| **Manual Text** | Type text → pick font/color/gradient → instantly shown on overlay | Ketik teks → pilih font/warna/gradient → langsung muncul di overlay |
+| **Image Upload** | Upload image → converted to ASCII art → displayed | Upload gambar → dikonversi ke ASCII art → ditampilkan |
+| **Video Upload** | Upload video → frame-by-frame ASCII display | Upload video → tampilan ASCII per frame |
+| **Gift Test** | Click test button → play gift animation without TikTok live | Klik tombol test → mainin animasi gift tanpa TikTok live |
+| **Matrix Toggle** | Turn matrix rain on/off, adjust speed & color | Nyalakan/matikan matrix rain, atur kecepatan & warna |
+| **Screenshot** | Manual capture with flash effect & aspect ratio options | Capture manual dengan efek flash & pilihan rasio aspek |
+| **Recording** | Record animation clip 3–30 seconds | Rekam klip animasi 3–30 detik |
+| **Font Cycle** | Rotate through fonts without restarting | Ganti-ganti font tanpa restart server |
+| **Clear Display** | Instantly clear all overlay content | Hapus semua konten overlay seketika |
+
+---
+
+### TikTok + Telegram Integration (Optional / Opsional)
+
+These are **optional enhancements** — they enable automatic triggers during live streams:
+
+| Integration | English | Indonesia |
+|------------|---------|-----------|
+| **TikTok Live** | Auto-display gifts & chat comments during live stream | Tampilkan otomatis gifts & komentar chat saat live |
+| **Telegram Bot** | Send commands via Telegram to control overlay | Kirim perintah via Telegram untuk kontrol overlay |
+
+> **Without TikTok/Telegram:** Use the Control Panel directly — all features are available.
+
+---
+
 ## 🎁 Gift Animation Flow
 
 1. **Robot Eyes** — 4-scene animation (neutral → lookLeft → lookRight → close)
