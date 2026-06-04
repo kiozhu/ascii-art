@@ -628,6 +628,7 @@ def _fire_riddle_ask():
         "original_text": r["q"],
     }
     socketio.emit("riddle_display", payload)
+    speak_async(r["q"])
     log("EVENT", "AUTO_REPLY", f"RIDDLE ASK: {r['q']}")
 
     # Schedule answer in riddle_interval_sec
@@ -667,8 +668,9 @@ def _fire_riddle_answer():
 
     auto_reply_state["current_riddle"] = None
 
-    # Schedule CTA after answer (2s pause), then next riddle after CTA (3s)
-    auto_reply_state["riddle_timer"] = threading.Timer(2.0, _fire_cta)
+    # Schedule CTA after answer (wait riddle_interval_sec), then next riddle after CTA (wait idle_timeout_sec)
+    interval = auto_reply_settings["riddle_interval_sec"]
+    auto_reply_state["riddle_timer"] = threading.Timer(interval, _fire_cta)
     auto_reply_state["riddle_timer"].start()
 
 
@@ -685,6 +687,7 @@ def _fire_cta():
         "content": cta_text,
         "ascii_content": ascii_cta,
         "timestamp": datetime.now().isoformat(),
+        "tts_text": cta_text,  # TTS text for overlay to speak
     }
     state["active_display"] = {
         "content": ascii_cta,
@@ -692,10 +695,12 @@ def _fire_cta():
         "original_text": cta_text,
     }
     socketio.emit("cta_display", payload)
+    speak_async(cta_text)
     log("EVENT", "AUTO_REPLY", f"CTA: {cta_text}")
 
-    # After CTA display, schedule next riddle
-    auto_reply_state["riddle_timer"] = threading.Timer(3.0, _fire_riddle_ask)
+    # After CTA display, schedule next riddle after idle_timeout_sec
+    idle_sec = auto_reply_settings["idle_timeout_sec"]
+    auto_reply_state["riddle_timer"] = threading.Timer(idle_sec, _fire_riddle_ask)
     auto_reply_state["riddle_timer"].start()
 
 

@@ -706,6 +706,11 @@ socket.on("riddle_display", (data) => {
         box.classList.remove("active");
       }
     }, 8000);
+    // TTS: speak text aloud via browser TTS (fallback if server TTS fails)
+    const ttsText = data.question || (data.content || "");
+    if (ttsText && window.speakText) {
+      window.speakText(ttsText);
+    }
   }
 });
 
@@ -733,6 +738,11 @@ socket.on("cta_display", (data) => {
         box.classList.remove("active");
       }
     }, 5000);
+    // TTS: speak CTA text aloud
+    const ctaText = data.content || "";
+    if (ctaText && window.speakText) {
+      window.speakText(ctaText);
+    }
   }
 });
 
@@ -837,6 +847,27 @@ let TTS_UNLOCKED = false;
 // Unlock audio on first user interaction (required by browser autoplay policy)
 document.addEventListener("click", () => { TTS_UNLOCKED = true; }, { once: true });
 document.addEventListener("keydown", () => { TTS_UNLOCKED = true; }, { once: true });
+
+// ─── Browser TTS fallback (uses SpeechSynthesis) ─────────────────
+window.speakText = function(text) {
+  if (!text) return;
+  // Always try browser TTS as fallback
+  if (window.speechSynthesis) {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'id-ID';
+    utt.rate = 1.0;
+    utt.pitch = 1.0;
+    utt.volume = TTS_VOLUME;
+    window.speechSynthesis.speak(utt);
+    return;
+  }
+  // Fallback: emit TTS request to server
+  if (typeof socket !== 'undefined' && socket.connected) {
+    socket.emit('browser_tts', { text: text });
+  }
+};
 
 socket.on("tts_audio", (data) => {
   if (!data.audio || !data.mime) return;
