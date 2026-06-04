@@ -296,6 +296,15 @@
   <button id="reconnect-btn" onclick="manualReconnect()" style="background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.55rem;padding:2px 6px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Reconnect">⟳</button>
   <button id="ss-btn" onclick="takeScreenshot()" style="background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.6rem;padding:2px 5px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Screenshot">📷</button>
   <button id="rec-btn" onclick="toggleRecord()" style="background:none;border:1px solid #ff4444;color:#ff4444;font-size:0.6rem;padding:2px 5px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.5;" title="Record">📹</button>
+  <button id="vol-btn" onclick="toggleVolumePanel()" style="background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.7rem;padding:2px 5px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;opacity:0.6;" title="TTS Volume">🔊</button>
+  <div id="vol-panel" style="display:none;position:absolute;top:28px;right:0;background:#0a0a0a;border:1px solid #00ff41;border-radius:4px;padding:10px 12px;z-index:100;min-width:140px;">
+    <div style="font-size:0.6rem;color:#00ff41;margin-bottom:8px;opacity:0.8;">TTS VOLUME</div>
+    <input type="range" id="vol-slider" min="0" max="100" value="80"
+      oninput="updateVolume(this.value)"
+      style="width:110px;accent-color:#00ff41;cursor:pointer;">
+    <div id="vol-display" style="font-size:0.55rem;color:#00ff41;margin-top:4px;text-align:center;opacity:0.7;">80%</div>
+    <button onclick="toggleVolumePanel()" style="margin-top:8px;width:100%;background:none;border:1px solid #00ff41;color:#00ff41;font-size:0.55rem;padding:3px;border-radius:3px;cursor:pointer;font-family:'Courier New',monospace;">CLOSE</button>
+  </div>
 </div>
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -744,6 +753,29 @@ socket.on("display_update", (data) => {
 });
 
 let badgeTimer = null;
+let TTS_VOLUME = 0.8; // 0.0 - 1.0
+
+// ─── TTS AUDIO ─────────────────────────────────────────────────
+socket.on("tts_audio", (data) => {
+  if (!data.audio || !data.mime) return;
+  const audio = new Audio(`data:${data.mime};base64,${data.audio}`);
+  audio.volume = TTS_VOLUME;
+  audio.play().catch(() => {});
+});
+
+function setTTSVolume(v) {
+  TTS_VOLUME = Math.max(0, Math.min(1, v));
+}
+
+function toggleVolumePanel() {
+  const panel = document.getElementById('vol-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function updateVolume(val) {
+  setTTSVolume(val / 100);
+  document.getElementById('vol-display').textContent = val + '%';
+}
 
 socket.on("tiktok_comment", (data) => {
   const badge = document.getElementById("event-badge");

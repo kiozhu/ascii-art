@@ -25,6 +25,7 @@ import time
 import pyfiglet
 import threading
 from datetime import datetime
+from gtts import gTTS
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
@@ -37,6 +38,49 @@ app = Flask(__name__)
 CORS(app)
 app.config["SECRET"] = "ascii-overlay-secret-2024"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+# ─── TTS VOICE ─────────────────────────────────────────────────
+AUDIO_CACHE_DIR = "/tmp/tts_cache"
+os.makedirs(AUDIO_CACHE_DIR, exist_ok=True)
+
+def speak_text(text, lang="id"):
+    """Generate MP3 from text via gTTS, save to cache, return filename"""
+    try:
+        safe_key = text.replace(" ", "_")[:30]
+        cache_file = f"{AUDIO_CACHE_DIR}/{safe_key}_{hash(text) % 100000}.mp3"
+        if not os.path.exists(cache_file):
+            tts = gTTS(text=text, lang=lang, slow=False)
+            tts.save(cache_file)
+        return cache_file
+    except Exception as e:
+        log("WARN", "TTS", f"TTS failed: {e}")
+        return None
+
+def emit_tts_audio(text, lang="id"):
+    """Read MP3 file and emit as base64 audio event via SocketIO"""
+    path = speak_text(text, lang)
+    if not path or not os.path.exists(path):
+        return
+    try:
+        with open(path, "rb") as f:
+            mp3_data = f.read()
+        b64 = base64.b64encode(mp3_data).decode()
+        # Emit to all connected clients
+        socketio.emit("tts_audio", {
+            "text": text,
+            "audio": b64,
+            "mime": "audio/mpeg"
+        })
+        log("INFO", "TTS", f"Emitted TTS: {text[:30]}")
+    except Exception as e:
+        log("WARN", "TTS", f"emit_tts_audio failed: {e}")
+
+def speak_async(text, lang="id"):
+    """Speak text in background thread - emit to browser instead of local play"""
+    threading.Thread(target=lambda: emit_tts_audio(text, lang), daemon=True).start()
+
+def speak_and_cleanup(text, lang):
+    pass  # No local playback anymore
 
 # ─── LOGGING ───────────────────────────────────────────────
 def log(level, source, msg):
@@ -496,6 +540,10 @@ def api_display_manual():
         "type": content_type,
         "source": "manual"
     })
+
+    # TTS: speak each word as it appears on display
+    if original_text:
+        speak_async(original_text)
 
     # Auto screenshot if enabled
     if settings.get("ss_mode") == "auto" and content:
