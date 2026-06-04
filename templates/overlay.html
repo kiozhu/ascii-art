@@ -680,10 +680,12 @@ socket.on("auto_rec", (data) => {
 });
 
 socket.on("riddle_display", (data) => {
+  console.log("[DEBUG] riddle_display received:", JSON.stringify(data));
   // riddle_ask: cyan colored display
   // riddle_answer: gold/yellow colored display
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
+  console.log("[DEBUG] manual-box:", box, "display:", box ? box.style.display : "N/A");
   if (giftBox) giftBox.style.display = "none";
   if (box) {
     box.style.display = "flex";

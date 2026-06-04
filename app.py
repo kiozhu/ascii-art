@@ -84,10 +84,23 @@ def speak_and_cleanup(text, lang):
     pass  # No local playback anymore
 
 # ─── LOGGING ───────────────────────────────────────────────
+import logging as _logging
+
+_logging.basicConfig(
+    level=_logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[
+        _logging.FileHandler("/tmp/ascii-app.log"),
+        _logging.StreamHandler(),
+    ],
+)
+_logger = _logging.getLogger("ascii")
+
 def log(level, source, msg):
     ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     line = f"[{ts}] [{level}] [{source}] {msg}"
-    print(line)
+    _logger.info(f"[{source}] {msg}")
     # store in memory for log page
     LOGS.append({"ts": ts, "level": level, "source": source, "msg": msg})
     if len(LOGS) > 500:
@@ -575,6 +588,7 @@ def _auto_reply_loop():
                     "original_text": f"@{username}: {reply}",
                 }
                 socketio.emit("auto_reply_display", payload)
+                log("EVENT", "AUTO_REPLY", f"  → emitted auto_reply_display to all clients")
                 speak_async(f"{username} bilang {reply}")
 
                 # Update last comment time
@@ -602,10 +616,16 @@ def _auto_reply_loop():
 def _fire_riddle_ask():
     """Timer callback: after idle_timeout, post riddle question."""
     global auto_reply_state
+    import sys
+    sys.stderr.write(f"[DEBUG _fire_riddle_ask] called at {time.time()}\n")
+    sys.stderr.flush()
     if not auto_reply_settings["enabled"]:
+        sys.stderr.write("[DEBUG _fire_riddle_ask] early return: not enabled\n")
         return
 
     r = gen_riddle()
+    sys.stderr.write(f"[DEBUG _fire_riddle_ask] riddle: {r['q']}\n")
+    sys.stderr.flush()
     auto_reply_state["current_riddle"] = r
 
     ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
@@ -621,8 +641,8 @@ def _fire_riddle_ask():
         "original_text": r["q"],
     }
     socketio.emit("riddle_display", payload)
-    speak_async(r["q"])
     log("EVENT", "AUTO_REPLY", f"RIDDLE ASK: {r['q']}")
+    log("INFO", "AUTO_REPLY", f"  → emitted riddle_display, keys: {list(payload.keys())}")
 
     # Schedule answer in riddle_interval_sec
     interval = auto_reply_settings["riddle_interval_sec"]
