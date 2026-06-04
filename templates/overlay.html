@@ -832,11 +832,27 @@ let badgeTimer = null;
 let TTS_VOLUME = 0.8; // 0.0 - 1.0
 
 // ─── TTS AUDIO ─────────────────────────────────────────────────
+let TTS_UNLOCKED = false;
+
+// Unlock audio on first user interaction (required by browser autoplay policy)
+document.addEventListener("click", () => { TTS_UNLOCKED = true; }, { once: true });
+document.addEventListener("keydown", () => { TTS_UNLOCKED = true; }, { once: true });
+
 socket.on("tts_audio", (data) => {
   if (!data.audio || !data.mime) return;
   const audio = new Audio(`data:${data.mime};base64,${data.audio}`);
   audio.volume = TTS_VOLUME;
-  audio.play().catch(() => {});
+  if (TTS_UNLOCKED) {
+    audio.play().catch(err => {
+      // NotAllowedError = blocked by browser autoplay policy — silent ignore
+      if (err.name !== "NotAllowedError") {
+        console.warn("[TTS] play failed:", err.message);
+      }
+    });
+  } else {
+    // Show brief unlock indicator then auto-play
+    audio.play().catch(() => {});
+  }
 });
 
 function setTTSVolume(v) {
