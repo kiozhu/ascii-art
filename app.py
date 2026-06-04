@@ -38,7 +38,7 @@ from converters.block_art import get_hermes_art
 app = Flask(__name__)
 CORS(app)
 app.config["SECRET"] = "ascii-overlay-secret-2024"
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ─── TTS VOICE ─────────────────────────────────────────────────
 AUDIO_CACHE_DIR = "/tmp/tts_cache"
@@ -432,6 +432,30 @@ RIDDLES = [
     {"q": "Bug apa yang bikin semangat?", "a": "Bug found"},
 ]
 
+# ─── CTA / SARAN KOMENTAR ─────────────────────────────────────
+# Diselingi antara tebak-tebakan, supaya ga monoton
+CTAS = [
+    "Mau tau jawaban? Ketik di kolom komentar ya! 👇",
+    "Kirim jawaban kamu di komentar dong! 😄",
+    "Coba tebak! Tulis di komentar 👇",
+    "Pake otak的部分 ya gaes 😂",
+    "Kirim jawaban terbaikmu di kolom komentar!",
+    "Ayoo coba tebak, ketik jawaban di kolom komentar! 🙌",
+    "Kalo tau jawabannya, tulis di komentar ya! 👇",
+    "Gausah malu, ketik jawaban di komentar! 😎",
+    "Tebak dulu, baru ketik jawaban! 👇",
+    "Yang tau langsung tulis di kolom komentar! 💪",
+    "Chat di kolom bawah ya, jangan malu! 😂",
+    "Ketik jawaban kamu di komentar, cepetan! ⏰",
+    "Ayam nyebrang dulu ya... eh maksudnya ketik jawaban! 🐔",
+    "Jgn lupa ketik jawaban di kolom komentar 👇",
+    "Siapa dulu yg tau? Coba ketik di komentar! 😄",
+    "Ketik jawaban terbaikmu di kolom komentar! 🙌",
+    "Gakusa oblok blok ketik aja di kolom komentar 😂",
+    "ayo tulis jawabanmu di kolom komentar! 👇",
+    "siapa yg tau? ketik di kolom komentar 💬",
+]
+
 # Auto reply internal state
 auto_reply_state = {
     "comment_queue": [],        # list of (username, comment) pending processing
@@ -643,11 +667,35 @@ def _fire_riddle_answer():
 
     auto_reply_state["current_riddle"] = None
 
-    # Schedule next riddle ask after idle_timeout
-    idle_sec = auto_reply_settings["idle_timeout_sec"]
-    auto_reply_state["riddle_timer"] = threading.Timer(
-        idle_sec, _fire_riddle_ask
-    )
+    # Schedule CTA after answer (2s pause), then next riddle after CTA (3s)
+    auto_reply_state["riddle_timer"] = threading.Timer(2.0, _fire_cta)
+    auto_reply_state["riddle_timer"].start()
+
+
+def _fire_cta():
+    """Show a CTA/sapaan after riddle answer."""
+    global auto_reply_state
+    if not auto_reply_settings["enabled"]:
+        return
+
+    cta_text = random.choice(CTAS)
+    ascii_cta = text_to_ascii(cta_text, font=settings.get("font", "ansi_shadow"))
+    payload = {
+        "type": "cta",
+        "content": cta_text,
+        "ascii_content": ascii_cta,
+        "timestamp": datetime.now().isoformat(),
+    }
+    state["active_display"] = {
+        "content": ascii_cta,
+        "type": "text",
+        "original_text": cta_text,
+    }
+    socketio.emit("cta_display", payload)
+    log("EVENT", "AUTO_REPLY", f"CTA: {cta_text}")
+
+    # After CTA display, schedule next riddle
+    auto_reply_state["riddle_timer"] = threading.Timer(3.0, _fire_riddle_ask)
     auto_reply_state["riddle_timer"].start()
 
 
@@ -905,6 +953,12 @@ def api_tiktok_simulate_batch():
 def api_auto_reply_enable():
     auto_reply_settings["enabled"] = True
     start_auto_reply_loop()
+    # Fire first riddle immediately (don't wait idle_timeout)
+    if not auto_reply_state.get("current_riddle"):
+        # Cancel any pending timer and fire now
+        if auto_reply_state.get("riddle_timer"):
+            auto_reply_state["riddle_timer"].cancel()
+        _fire_riddle_ask()
     log("INFO", "AUTO_REPLY", "Enabled")
     return jsonify({"ok": True, "enabled": True})
 
@@ -937,7 +991,7 @@ def api_auto_reply_test_riddle():
     """Fire a test riddle immediately (question + answer back-to-back for demo)."""
     r = gen_riddle()
     ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
-    ascii_a = text_to_ascii(f"Jawabannya: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    ascii_a = text_to_ascii(f"Jawaban: {r['a']}", font=settings.get("font", "ansi_shadow"))
     socketio.emit("riddle_display", {
         "type": "riddle_ask",
         "question": r["q"],
@@ -1286,4 +1340,4 @@ if __name__ == "__main__":
     # Start Telegram bot
     init_telegram()
 
-    socketio.run(app, host=host, port=port, debug=False)
+    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
