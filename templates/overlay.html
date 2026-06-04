@@ -679,6 +679,47 @@ socket.on("auto_rec", (data) => {
   }
 });
 
+socket.on("riddle_display", (data) => {
+  // riddle_ask: cyan colored display
+  // riddle_answer: gold/yellow colored display
+  const box = document.getElementById("manual-box");
+  const giftBox = document.getElementById("gift-box");
+  if (giftBox) giftBox.style.display = "none";
+  if (box) {
+    box.style.display = "flex";
+    box.classList.add("active");
+    const isAnswer = data.type === "riddle_answer";
+    const color = isAnswer ? "#FFD700" : "#00E5FF";
+    const glow = isAnswer ? "#FF4500" : "#00ff41";
+    const label = isAnswer ? "💡 JAWABAN" : "❓ TEBAK TEBAKAN";
+    const html = escapeHtml(data.ascii_content || data.content || "");
+    const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}</div>
+      ${styled}
+    </div>`;
+  }
+});
+
+socket.on("auto_reply_display", (data) => {
+  // Auto-reply: bright green with user tag
+  const box = document.getElementById("manual-box");
+  const giftBox = document.getElementById("gift-box");
+  if (giftBox) giftBox.style.display = "none";
+  if (box) {
+    box.style.display = "flex";
+    box.classList.add("active");
+    const color = "#39FF14"; // neon green
+    const glow = "#00ff41";
+    const html = escapeHtml(data.ascii_content || data.content || "");
+    const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">🤖 AUTO REPLY</div>
+      ${styled}
+    </div>`;
+  }
+});
+
 socket.on("status_update", (data) => {
   if (data.tiktok_status === "CONNECTED") {
     document.getElementById("ws-dot").className = "status-dot green";

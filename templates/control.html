@@ -417,6 +417,7 @@
 <div class="tab-bar">
   <div class="tab active" onclick="showTab('manual')">📦 MANUAL DISPLAY</div>
   <div class="tab" onclick="showTab('tiktok')">🎵 TIKTOK</div>
+  <div class="tab" onclick="showTab('autoreply')">🤖 AUTO REPLY</div>
   <div class="tab" onclick="showTab('settings')">⚙️ SETTINGS</div>
   <div class="tab" onclick="showTab('preview')">👁️ PREVIEW</div>
 </div>
@@ -478,6 +479,75 @@
         <span id="log-count">0 entries</span>
       </div>
       <div class="logs-content" id="logs-content"></div>
+    </div>
+  </div>
+
+  <!-- Auto Reply panel -->
+  <div class="panel" id="panel-autoreply" style="grid-column:span 2; display:none;">
+    <div class="panel-title">▓ 🤖 AI AUTO REPLY — CHAT INTERAKTIF</div>
+
+    <!-- Status -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin-bottom:20px;">
+      <div style="border:1px solid #00ff4144;border-radius:8px;padding:15px;background:#000;text-align:center;">
+        <div style="font-size:0.6rem;opacity:0.5;letter-spacing:2px;margin-bottom:8px;">STATUS</div>
+        <div id="ar-status-badge" style="font-size:1.4rem;font-weight:bold;color:#ff0040;">❌ OFF</div>
+      </div>
+      <div style="border:1px solid #00ff4144;border-radius:8px;padding:15px;background:#000;text-align:center;">
+        <div style="font-size:0.6rem;opacity:0.5;letter-spacing:2px;margin-bottom:8px;">QUEUE</div>
+        <div id="ar-queue-size" style="font-size:1.4rem;font-weight:bold;color:#00E5FF;">0</div>
+      </div>
+      <div style="border:1px solid #00ff4144;border-radius:8px;padding:15px;background:#000;text-align:center;">
+        <div style="font-size:0.6rem;opacity:0.5;letter-spacing:2px;margin-bottom:8px;">RIDDLE AKTIF</div>
+        <div id="ar-riddle-active" style="font-size:0.75rem;font-weight:bold;color:#FFD700;">—</div>
+      </div>
+    </div>
+
+    <!-- Enable / Disable -->
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+      <button class="btn btn-green" id="ar-btn-enable" onclick="arEnable()">▶ AKTIFKAN</button>
+      <button class="btn btn-red" id="ar-btn-disable" onclick="arDisable()" style="display:none;">✕ NONAKTIFKAN</button>
+      <button class="btn btn-outline" onclick="arRefreshStatus()">↻ REFRESH STATUS</button>
+    </div>
+
+    <!-- Test section -->
+    <div style="border:1px solid #00ff4122;border-radius:8px;padding:15px;margin-bottom:15px;background:#000;">
+      <div style="font-size:0.7rem;letter-spacing:2px;opacity:0.6;margin-bottom:12px;text-transform:uppercase;">🧪 Test Panel</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Username</label>
+          <input type="text" id="ar-test-user" value="TestUser" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.85rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Komentar</label>
+          <input type="text" id="ar-test-comment" value="Keren banget!" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.85rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="arTestComment()">💬 TEST KOMENTAR</button>
+        <button class="btn btn-outline btn-sm" onclick="arTestRiddle()">❓ TEST TEBAK-TEBAKAN</button>
+        <button class="btn btn-outline btn-sm" onclick="arSimulateFlood()">🌊 SIMULATE FLOOD</button>
+      </div>
+    </div>
+
+    <!-- Info box -->
+    <div class="info-box" style="line-height:1.6;">
+      <b>Cara kerja:</b><br>
+      1. Aktifkan fitur → koneksikan ke TikTok Live<br>
+      2. Komentar masuk → dijawab AI max 5 kata lucu<br>
+      3. Tidak ada komentar 5 detik → tebak-tebakan lucu muncul<br>
+      4. 5 detik kemudian → jawaban ditampilkan<br>
+      5. Loop terus selama aktif<br>
+      <br>
+      <b>Warna display:</b><br>
+      🟢 Neon Hijau = Auto Reply (komentar dibalas)<br>
+      🔵 Cyan = Tebak-tebakan (pertanyaan)<br>
+      🟡 Gold = Jawaban tebak-tebakan<br>
+    </div>
+
+    <!-- Riddles preview -->
+    <div style="margin-top:15px;">
+      <div style="font-size:0.7rem;letter-spacing:2px;opacity:0.6;margin-bottom:10px;text-transform:uppercase;">📚 Daftar Tebak-Tebakan (<span id="ar-riddle-count">0</span>)</div>
+      <div id="ar-riddle-list" style="max-height:200px;overflow-y:auto;border:1px solid #00ff4122;border-radius:8px;padding:10px;background:#000;font-size:0.7rem;line-height:1.8;"></div>
     </div>
   </div>
 
@@ -1241,8 +1311,14 @@ function showTab(tab) {
   } else if (tab === "tiktok") {
     document.querySelector(".tab:nth-child(2)").classList.add("active");
     document.getElementById("panel-tiktok").style.display = "block";
-  } else if (tab === "settings") {
+  } else if (tab === "autoreply") {
     document.querySelector(".tab:nth-child(3)").classList.add("active");
+    document.getElementById("panel-autoreply").style.display = "block";
+    document.getElementById("panel-autoreply").style.gridColumn = "span 2";
+    arRefreshStatus();
+    loadRiddles();
+  } else if (tab === "settings") {
+    document.querySelector(".tab:nth-child(4)").classList.add("active");
     document.getElementById("panel-settings").style.display = "block";
     document.getElementById("panel-settings").style.gridColumn = "span 2";
   } else {
@@ -1250,6 +1326,119 @@ function showTab(tab) {
     document.getElementById("panel-preview").style.display = "block";
     document.getElementById("panel-preview").style.gridColumn = "span 2";
   }
+}
+
+// ── Auto Reply ───────────────────────────────────────────────
+function arEnable() {
+  fetch(`${window.location.origin}/api/auto_reply/enable`, { method: "POST" })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        addLog("EVENT", "AUTO_REPLY: ✅ Diaktifkan");
+        document.getElementById("ar-status-badge").textContent = "✅ ON";
+        document.getElementById("ar-status-badge").style.color = "#00ff41";
+        document.getElementById("ar-btn-enable").style.display = "none";
+        document.getElementById("ar-btn-disable").style.display = "";
+      }
+    });
+}
+
+function arDisable() {
+  fetch(`${window.location.origin}/api/auto_reply/disable`, { method: "POST" })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        addLog("EVENT", "AUTO_REPLY: ❌ Dinonaktifkan");
+        document.getElementById("ar-status-badge").textContent = "❌ OFF";
+        document.getElementById("ar-status-badge").style.color = "#ff0040";
+        document.getElementById("ar-btn-enable").style.display = "";
+        document.getElementById("ar-btn-disable").style.display = "none";
+        document.getElementById("ar-queue-size").textContent = "0";
+        document.getElementById("ar-riddle-active").textContent = "—";
+      }
+    });
+}
+
+function arRefreshStatus() {
+  fetch(`${window.location.origin}/api/auto_reply/status`)
+    .then(r => r.json())
+    .then(d => {
+      const enabled = d.enabled;
+      document.getElementById("ar-status-badge").textContent = enabled ? "✅ ON" : "❌ OFF";
+      document.getElementById("ar-status-badge").style.color = enabled ? "#00ff41" : "#ff0040";
+      document.getElementById("ar-btn-enable").style.display = enabled ? "none" : "";
+      document.getElementById("ar-btn-disable").style.display = enabled ? "" : "none";
+      document.getElementById("ar-queue-size").textContent = d.queue_size || 0;
+      const riddle = d.current_riddle;
+      document.getElementById("ar-riddle-active").textContent = riddle ? riddle.q.substring(0, 30) + "…" : "—";
+    })
+    .catch(() => addLog("ERROR", "AR: Gagal fetch status"));
+}
+
+function arTestComment() {
+  const user = document.getElementById("ar-test-user").value || "TestUser";
+  const comment = document.getElementById("ar-test-comment").value || "Keren!";
+  fetch(`${window.location.origin}/api/auto_reply/test_comment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: user, comment })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      addLog("EVENT", `AR: 💬 Test comment queued: @${user}: ${comment}`);
+      arRefreshStatus();
+    }
+  });
+}
+
+function arTestRiddle() {
+  fetch(`${window.location.origin}/api/auto_reply/test_riddle`, { method: "POST" })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        addLog("EVENT", `AR: ❓ Test riddle: ${d.riddle.q}`);
+      }
+    });
+}
+
+function arSimulateFlood() {
+  const comments = [
+    { user: "NeonDev", comment: "keren banget!" },
+    { user: "MatrixLover", comment: "wkwk ngakak" },
+    { user: "CyberNerd", comment: "gimana caranya?" },
+    { user: "AI_Fan", comment: "mau dong!" },
+    { user: "TechGeek", comment: "🔥🔥🔥" },
+    { user: "ByteRunner", comment: "bagus banget" },
+    { user: "PixelWave", comment: "wkwkwk" },
+    { user: "DataStream", comment: "gila ini" },
+  ];
+  comments.forEach(({ user, comment }, i) => {
+    setTimeout(() => {
+      fetch(`${window.location.origin}/api/auto_reply/test_comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, comment })
+      });
+      addLog("EVENT", `AR: 💬 Flood[${i+1}]: @${user}: ${comment}`);
+    }, i * 800);
+  });
+}
+
+function loadRiddles() {
+  fetch(`${window.location.origin}/api/auto_reply/riddles`)
+    .then(r => r.json())
+    .then(d => {
+      const list = document.getElementById("ar-riddle-list");
+      const count = document.getElementById("ar-riddle-count");
+      if (!list) return;
+      count.textContent = d.riddles ? d.riddles.length : 0;
+      list.innerHTML = (d.riddles || []).map(r =>
+        `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #00ff4111;">
+          <span style="color:#00E5FF;">❓ ${r.q}</span><br>
+          <span style="color:#FFD700;">💡 ${r.a}</span>
+        </div>`
+      ).join("");
+    })
+    .catch(() => {});
 }
 
 // Init

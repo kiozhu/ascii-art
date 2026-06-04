@@ -22,6 +22,7 @@ import base64
 import uuid
 import json
 import time
+import random
 import pyfiglet
 import threading
 from datetime import datetime
@@ -385,7 +386,311 @@ DEFAULT_GIFT_TYPING_SPEED = 50  # ms per character
 DEFAULT_GIFT_BLINK_DURATION = 800  # ms
 DEFAULT_GIFT_DISPLAY_DURATION = 5000  # ms
 
-# ─── SETTINGS ────────────────────────────────────────────────
+# ─── AUTO REPLY (AI Chat) SETTINGS ──────────────────────────
+auto_reply_settings = {
+    "enabled": False,
+    "idle_timeout_sec": 5,     # seconds to wait after last comment before starting riddle cycle
+    "riddle_interval_sec": 5,  # seconds between riddle → answer
+    "max_words": 5,            # max words per reply
+    "reply_style": "funny",    # "funny" | "sarcastic" | "random"
+}
+
+# ─── RIDDLE POOL ─────────────────────────────────────────────
+# Each riddle is a dict with {question, answer} — max ~5 words each
+RIDDLES = [
+    {"q": "Kenapa ayam nyebrang jalan?", "a": "Karena belum ada ojol"},
+    {"q": "Apa yang punya kaki tapi gak bisa jalan?", "a": "Meja"},
+    {"q": "Benda apa yang makin kecil makin besar?", "a": "Lubang"},
+    {"q": "Tembok apa yang suka dibikin?", "a": "Tembok不语"},
+    {"q": "Kenapa programmer suka gelap?", "a": "Karena suka night mode"},
+    {"q": "Kaki apa yang gak bisa jalan?", "a": "Kaki langit"},
+    {"q": "Telor rebus = telor apa?", "a": "Telor yang kalah"},
+    {"q": "Kenapa GPS gagal kerja?", "a": "Karena hilang sinyal"},
+    {"q": "HP apa yang suka bikin kesel?", "a": "HP galau"},
+    {"q": "Kaca apa yang bikin pusing?", "a": "Kacamata"},
+    {"q": "Api apa yang bikin sejuk?", "a": "Apinya sungu"},
+    {"q": "Ikan apa yang bikin lapar?", "a": "Ikan teri"},
+    {"q": "Baju apa yang gak pernah obsolet?", "a": "Baju tidur"},
+    {"q": "Rambut apa yang bikin kesel?", "a": "Rambut botak"},
+    {"q": "Kunci apa yang bikin bingung?", "a": "Kunci tanya"},
+    {"q": "Sendal apa yang bikin senyum?", "a": "Sendal happy"},
+    {"q": "Cermin apa yang gak bisa dipake?", "a": "Cermin pembesar"},
+    {"q": "Bantal apa yang bikin ngantuk?", "a": "Bantal gas"},
+    {"q": "Gelas apa yang bikin笑了?", "a": "Gelas berisi"},
+    {"q": "Kursi apa yang bikin muales?", "a": "Kursi putar"},
+    {"q": "Laptop apa yang bikin bingung?", "a": "Laptop pung"},
+    {"q": "HP apa yang gak bisa jawab?", "a": "HP kentang"},
+    {"q": "Kompor apa yang bikin mongol?", "a": "Kompor gas"},
+    {"q": "Meja apa yang bikin ketawa?", "a": "Meja makan"},
+    {"q": "Chair apa yang bikin lari?", "a": "Chairman"},
+    {"q": "Tape apa yang bikin erro?", "a": "Tape salah"},
+    {"q": "Buku apa yang bikin pusing?", "a": "Buku hitung"},
+    {"q": "Google apa yang bikin kesel?", "a": "Google tidak ditemukan"},
+    {"q": "WiFi apa yang bikin galau?", "a": "WiFi error"},
+    {"q": "Mouse apa yang bunyi?", "a": "Mousesaja"},
+    {"q": "Speaker apa yang bikin tinggi?", "a": "Speaker anjing"},
+    {"q": "Flashdisk apa yang bikin bingung?", "a": "Flash tidak ditemukan"},
+    {"q": "CPU apa yang bikin mongol?", "a": "CPU overload"},
+    {"q": "RAM apa yang bikin lucu?", "a": "RAM dong"},
+    {"q": "Bit apa yang bikin tinggi?", "a": "Bit Tinggi"},
+    {"q": "Byte apa yang bikin ngakak?", "a": "Byte jokes"},
+    {"q": "Code apa yang bikin kesel?", "a": "Code error"},
+    {"q": "Loop apa yang bikin pusing?", "a": "Loop infinity"},
+    {"q": "Bug apa yang bikin seru?", "a": "Bug interesting"},
+]
+
+# Auto reply internal state
+auto_reply_state = {
+    "comment_queue": [],        # list of (username, comment) pending processing
+    "last_comment_time": 0,     # timestamp of last comment
+    "current_riddle": None,     # {"q": ..., "a": ..., "ask_time": ...}
+    "riddle_timer": None,       # threading.Timer for next riddle action
+    "loop_thread": None,        # background processing thread
+    "running": False,
+}
+
+# Funny reply templates (max 5 words each)
+FUNNY_REPLIES = [
+    "Wkwk kreatif juga kamu 😏",
+    "Hah? Mana ada såå",
+    "Otak kamu di luar sana ya? 😂",
+    "Kok bisa gitu sih 🤯",
+    "Astaga level kamu tinggi banget 🎮",
+    "Yakin? Check lagi deh 👀",
+    "Kagak salah? Serius nih? 😜",
+    "KEREN BANGET GAKESIAN 🔥🔥",
+    "Auto nangis aku 🥲😂",
+    "WAIT APA??? INI KENAPA? 🤯",
+    "KAMU NIH EMANG PASTI? 👀",
+    "Wah ada yang salah nih 🤔",
+    "Lebay banget dah 😂🤣",
+    "Gas terus bang 👊💪",
+    "KALAU BENER INI GILA 😂",
+    "Siap terima kasih atas partisipasi 🫡",
+    "PING PONG 🍜🫡",
+    "KACAU EMANG 🤡",
+    "GAK PAHAM tapi oke 🤝",
+    "Bro ini level berapa 🫡",
+    "Mantap jiwa bang 👊🔥",
+    "KODE RED 🤖✨",
+    "NOTED 📝📝📝",
+    "AUTOMATIC LIKE ✅✅✅",
+    "SALAH KAPRAH GANS 😎",
+    "WAW KEREN BANGET ☄️✨",
+    "SAD BOYS 💔💔",
+    "HARDEST ROCK 🎸🎸",
+    "GAMERS ONLY 🎮🫡",
+    "NO COMMENTS 📝❌",
+    "WAIT WAIT WAIT 🤯🤯",
+    "FIX TIE 🧍‍♂️🧍‍♀️",
+    "LUAR BIASA GANS 😍😍",
+    "CIUM TEFLON 🍳🫣",
+    "MATA GUA SISA SATU 👁️",
+    "BENER BANGET ITU 🤝🤝",
+    "YANG MANA? 🤯🫣",
+    "PANIK GANS 😭😂",
+    "FIX INI YANG BENER ✅✅",
+]
+
+
+def gen_auto_reply(username, comment):
+    """Generate a funny auto-reply (max 5 words)."""
+    words = comment.lower().split()
+    # Context-aware responses
+    if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
+        replies = [
+            "Yaelah gitu aja tahu 🤔",
+            "Nah itu dia pertanyaananya 😏",
+            "JANGAN JADIIN GUYON YA 😂",
+            "NahLO bingung gak nih 😜",
+            "Bro pertanyaan itu susah 👀",
+        ]
+    elif any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk"]):
+        replies = [
+            "Ketawa apaan sih 😂😂",
+            "Ngakak parah 😭😭",
+            "LUAR BIASA INI 😂🔥",
+            "KOCAK BANGET 😭😭😂",
+        ]
+    elif any(w in words for w in ["keren", "mantap", "bagus", "good", "nice"]):
+        replies = [
+            "SALAH KAPRAH 😎😎",
+            "ENGGAK ENGGAK 🥲🥲",
+            "BENER BANGET TU 🙌🙌",
+            "WKWK KAMU PASTI GOKIL 🤯🔥",
+            "AUTOMATIC SABUNGAN 🫡",
+        ]
+    elif any(w in words for w in ["mau", "dih", "dong", "donk", "pls"]):
+        replies = [
+            "Gak semurah itu bang 😂",
+            "WAIT APA KATA MU 🫣",
+            "SIAP BOS 🫡🫡",
+            "OKE OKE TUNGGU 📝",
+            "GAK DIKIRAIN GINI 😏",
+        ]
+    else:
+        replies = FUNNY_REPLIES
+
+    reply = random.choice(replies)
+    # Make sure max 5 words
+    reply_words = reply.split()
+    if len(reply_words) > 5:
+        reply = " ".join(reply_words[:5])
+    return reply
+
+
+def gen_riddle():
+    """Pick a random riddle from pool."""
+    r = random.choice(RIDDLES)
+    return {"q": r["q"], "a": r["a"], "ask_time": time.time()}
+
+
+def _auto_reply_loop():
+    """Background loop: processes comment queue and fires riddles on idle."""
+    global auto_reply_state
+
+    while auto_reply_state["running"]:
+        now = time.time()
+        has_comment = len(auto_reply_state["comment_queue"]) > 0
+
+        if has_comment:
+            # Process all queued comments (FIFO)
+            while auto_reply_state["comment_queue"]:
+                username, comment = auto_reply_state["comment_queue"].pop(0)
+                reply = gen_auto_reply(username, comment)
+
+                # Render reply as ASCII art + emit
+                ascii_reply = text_to_ascii(f"@{username}: {reply}", font=settings.get("font", "ansi_shadow"))
+                payload = {
+                    "type": "auto_reply",
+                    "username": username,
+                    "original_comment": comment,
+                    "reply": reply,
+                    "ascii_content": ascii_reply,
+                    "timestamp": datetime.now().isoformat(),
+                }
+                state["active_display"] = {
+                    "content": ascii_reply,
+                    "type": "text",
+                    "original_text": f"@{username}: {reply}",
+                }
+                socketio.emit("auto_reply_display", payload)
+                speak_async(f"{username} bilang {reply}")
+
+                # Update last comment time
+                auto_reply_state["last_comment_time"] = time.time()
+
+                # Reset riddle timer when there's activity
+                if auto_reply_state["riddle_timer"]:
+                    auto_reply_state["riddle_timer"].cancel()
+
+                idle_sec = auto_reply_settings["idle_timeout_sec"]
+                auto_reply_state["riddle_timer"] = threading.Timer(
+                    idle_sec, _fire_riddle_ask
+                )
+                auto_reply_state["riddle_timer"].start()
+
+                log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
+        else:
+            # No comments — check if we should fire a riddle
+            # (riddle timer handles this via _fire_riddle_ask)
+            pass
+
+        time.sleep(0.5)
+
+
+def _fire_riddle_ask():
+    """Timer callback: after idle_timeout, post riddle question."""
+    global auto_reply_state
+    if not auto_reply_settings["enabled"]:
+        return
+
+    r = gen_riddle()
+    auto_reply_state["current_riddle"] = r
+
+    ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
+    payload = {
+        "type": "riddle_ask",
+        "question": r["q"],
+        "ascii_content": ascii_q,
+        "timestamp": datetime.now().isoformat(),
+    }
+    state["active_display"] = {
+        "content": ascii_q,
+        "type": "text",
+        "original_text": r["q"],
+    }
+    socketio.emit("riddle_display", payload)
+    speak_async(r["q"])
+    log("EVENT", "AUTO_REPLY", f"RIDDLE ASK: {r['q']}")
+
+    # Schedule answer in riddle_interval_sec
+    interval = auto_reply_settings["riddle_interval_sec"]
+    auto_reply_state["riddle_timer"] = threading.Timer(
+        interval, _fire_riddle_answer
+    )
+    auto_reply_state["riddle_timer"].start()
+
+
+def _fire_riddle_answer():
+    """Timer callback: post riddle answer after interval."""
+    global auto_reply_state
+    if not auto_reply_settings["enabled"]:
+        return
+
+    r = auto_reply_state.get("current_riddle")
+    if not r:
+        return
+
+    ascii_a = text_to_ascii(f"Jawabannya: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    payload = {
+        "type": "riddle_answer",
+        "question": r["q"],
+        "answer": r["a"],
+        "ascii_content": ascii_a,
+        "timestamp": datetime.now().isoformat(),
+    }
+    state["active_display"] = {
+        "content": ascii_a,
+        "type": "text",
+        "original_text": f"Jawabannya: {r['a']}",
+    }
+    socketio.emit("riddle_display", payload)
+    speak_async(f"Jawabannya adalah {r['a']}")
+    log("EVENT", "AUTO_REPLY", f"RIDDLE ANS: {r['a']}")
+
+    auto_reply_state["current_riddle"] = None
+
+    # Schedule next riddle ask after idle_timeout
+    idle_sec = auto_reply_settings["idle_timeout_sec"]
+    auto_reply_state["riddle_timer"] = threading.Timer(
+        idle_sec, _fire_riddle_ask
+    )
+    auto_reply_state["riddle_timer"].start()
+
+
+def start_auto_reply_loop():
+    """Start the background auto-reply processing loop."""
+    global auto_reply_state
+    if auto_reply_state["loop_thread"] and auto_reply_state["loop_thread"].is_alive():
+        return
+    auto_reply_state["running"] = True
+    auto_reply_state["loop_thread"] = threading.Thread(target=_auto_reply_loop, daemon=True)
+    auto_reply_state["loop_thread"].start()
+    log("INFO", "AUTO_REPLY", "Background loop started")
+
+
+def stop_auto_reply_loop():
+    """Stop the background loop and cancel pending timers."""
+    global auto_reply_state
+    auto_reply_state["running"] = False
+    if auto_reply_state["riddle_timer"]:
+        auto_reply_state["riddle_timer"].cancel()
+        auto_reply_state["riddle_timer"] = None
+    log("INFO", "AUTO_REPLY", "Background loop stopped")
+
+
+# ─── SETTINGS (continued) ───────────────────────────────────
 settings = {
     "font": "ansi_shadow",
     "bigfont": "banner",
@@ -581,7 +886,6 @@ def api_tiktok_simulate():
 @app.route("/api/tiktok/simulate_batch", methods=["POST"])
 def api_tiktok_simulate_batch():
     """Flood test — simulate multiple comments with varied accounts"""
-    import random
 
     ACCOUNTS = [
         "NeonDev", "MatrixLover", "CyberNerd", "AI_Fan", "CodeMaster",
@@ -614,8 +918,68 @@ def api_tiktok_simulate_batch():
 
     return jsonify({"ok": True, "sent": results})
 
+# ─── API: AUTO REPLY (AI Chat) ───────────────────────────────
+@app.route("/api/auto_reply/enable", methods=["POST"])
+def api_auto_reply_enable():
+    auto_reply_settings["enabled"] = True
+    start_auto_reply_loop()
+    log("INFO", "AUTO_REPLY", "Enabled")
+    return jsonify({"ok": True, "enabled": True})
+
+@app.route("/api/auto_reply/disable", methods=["POST"])
+def api_auto_reply_disable():
+    auto_reply_settings["enabled"] = False
+    stop_auto_reply_loop()
+    log("INFO", "AUTO_REPLY", "Disabled")
+    return jsonify({"ok": True, "enabled": False})
+
+@app.route("/api/auto_reply/status", methods=["GET"])
+def api_auto_reply_status():
+    return jsonify({
+        "enabled": auto_reply_settings["enabled"],
+        "settings": auto_reply_settings,
+        "queue_size": len(auto_reply_state["comment_queue"]),
+        "current_riddle": auto_reply_state.get("current_riddle"),
+    })
+
+@app.route("/api/auto_reply/test_comment", methods=["POST"])
+def api_auto_reply_test_comment():
+    """Simulate a test comment into the auto-reply queue."""
+    username = request.json.get("username", "TestUser")
+    comment = request.json.get("comment", "Test comment lucu!")
+    handle_tiktok_comment(username, comment)
+    return jsonify({"ok": True, "queued": f"@{username}: {comment}"})
+
+@app.route("/api/auto_reply/test_riddle", methods=["POST"])
+def api_auto_reply_test_riddle():
+    """Fire a test riddle immediately (question + answer back-to-back for demo)."""
+    r = gen_riddle()
+    ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
+    ascii_a = text_to_ascii(f"Jawabannya: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    socketio.emit("riddle_display", {
+        "type": "riddle_ask",
+        "question": r["q"],
+        "ascii_content": ascii_q,
+        "timestamp": datetime.now().isoformat(),
+    })
+    # Fire answer after 5 seconds
+    threading.Timer(5.0, lambda: socketio.emit("riddle_display", {
+        "type": "riddle_answer",
+        "question": r["q"],
+        "answer": r["a"],
+        "ascii_content": ascii_a,
+        "timestamp": datetime.now().isoformat(),
+    })).start()
+    return jsonify({"ok": True, "riddle": r})
+
+@app.route("/api/auto_reply/riddles", methods=["GET"])
+def api_auto_reply_riddles():
+    """Return all riddles in the pool."""
+    return jsonify({"riddles": RIDDLES})
+
+
 def handle_tiktok_comment(username, comment):
-    """Handler for simulated TikTok comments"""
+    """Handler for TikTok comments — relay to overlay AND queue for auto-reply."""
     state["event_count"] += 1
     log("EVENT", "TIKTOK", f"Comment: @{username}: {comment}")
     socketio.emit("tiktok_comment", {
@@ -624,6 +988,9 @@ def handle_tiktok_comment(username, comment):
         "timestamp": datetime.now().isoformat(),
         "event_num": state["event_count"]
     })
+    # Queue for auto-reply processing
+    if auto_reply_settings["enabled"]:
+        auto_reply_state["comment_queue"].append((username, comment))
 
 # ─── TIKTOK CONNECTOR ─────────────────────────────────────
 tiktok_conn = None
