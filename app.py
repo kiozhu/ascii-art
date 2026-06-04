@@ -412,44 +412,24 @@ auto_reply_settings = {
 # Each riddle is a dict with {question, answer} — max ~5 words each
 RIDDLES = [
     {"q": "Kenapa ayam nyebrang jalan?", "a": "Karena belum ada ojol"},
-    {"q": "Apa yang punya kaki tapi gak bisa jalan?", "a": "Meja"},
     {"q": "Benda apa yang makin kecil makin besar?", "a": "Lubang"},
-    {"q": "Tembok apa yang suka dibikin?", "a": "Tembok不语"},
-    {"q": "Kenapa programmer suka gelap?", "a": "Karena suka night mode"},
-    {"q": "Kaki apa yang gak bisa jalan?", "a": "Kaki langit"},
-    {"q": "Telor rebus = telor apa?", "a": "Telor yang kalah"},
-    {"q": "Kenapa GPS gagal kerja?", "a": "Karena hilang sinyal"},
-    {"q": "HP apa yang suka bikin kesel?", "a": "HP galau"},
+    {"q": "Kenapa programmer suka gelap?", "a": "Karena butuh night mode"},
+    {"q": "Apa yang punya kaki tapi gak bisa jalan?", "a": "Meja"},
+    {"q": "Telor rebus = telor apa?", "a": "Telor yang udah matang"},
+    {"q": "Kenapa GPS suka gagal?", "a": "Karena signal ilang"},
+    {"q": "HP apa yang bikin kesel?", "a": "HP lowbat"},
     {"q": "Kaca apa yang bikin pusing?", "a": "Kacamata"},
-    {"q": "Api apa yang bikin sejuk?", "a": "Apinya sungu"},
     {"q": "Ikan apa yang bikin lapar?", "a": "Ikan teri"},
-    {"q": "Baju apa yang gak pernah obsolet?", "a": "Baju tidur"},
-    {"q": "Rambut apa yang bikin kesel?", "a": "Rambut botak"},
-    {"q": "Kunci apa yang bikin bingung?", "a": "Kunci tanya"},
-    {"q": "Sendal apa yang bikin senyum?", "a": "Sendal happy"},
-    {"q": "Cermin apa yang gak bisa dipake?", "a": "Cermin pembesar"},
-    {"q": "Bantal apa yang bikin ngantuk?", "a": "Bantal gas"},
-    {"q": "Gelas apa yang bikin笑了?", "a": "Gelas berisi"},
-    {"q": "Kursi apa yang bikin muales?", "a": "Kursi putar"},
-    {"q": "Laptop apa yang bikin bingung?", "a": "Laptop pung"},
-    {"q": "HP apa yang gak bisa jawab?", "a": "HP kentang"},
-    {"q": "Kompor apa yang bikin mongol?", "a": "Kompor gas"},
-    {"q": "Meja apa yang bikin ketawa?", "a": "Meja makan"},
-    {"q": "Chair apa yang bikin lari?", "a": "Chairman"},
-    {"q": "Tape apa yang bikin erro?", "a": "Tape salah"},
-    {"q": "Buku apa yang bikin pusing?", "a": "Buku hitung"},
-    {"q": "Google apa yang bikin kesel?", "a": "Google tidak ditemukan"},
+    {"q": "Bantal apa yang bikin ngantuk?", "a": "Bantal"},
+    {"q": "Kursi apa yang bikin pusing?", "a": "Kursi putar"},
     {"q": "WiFi apa yang bikin galau?", "a": "WiFi error"},
-    {"q": "Mouse apa yang bunyi?", "a": "Mousesaja"},
-    {"q": "Speaker apa yang bikin tinggi?", "a": "Speaker anjing"},
-    {"q": "Flashdisk apa yang bikin bingung?", "a": "Flash tidak ditemukan"},
-    {"q": "CPU apa yang bikin mongol?", "a": "CPU overload"},
-    {"q": "RAM apa yang bikin lucu?", "a": "RAM dong"},
-    {"q": "Bit apa yang bikin tinggi?", "a": "Bit Tinggi"},
-    {"q": "Byte apa yang bikin ngakak?", "a": "Byte jokes"},
+    {"q": "Mouse apa yang bunyi terus?", "a": "Mouse eror"},
+    {"q": "Speaker apa yang bikin tinggi?", "a": "Speaker ngebass"},
+    {"q": "CPU apa yang bikin meledak?", "a": "CPU overload"},
+    {"q": "RAM apa yang bikin lupa?", "a": "RAM penuh"},
     {"q": "Code apa yang bikin kesel?", "a": "Code error"},
     {"q": "Loop apa yang bikin pusing?", "a": "Loop infinity"},
-    {"q": "Bug apa yang bikin seru?", "a": "Bug interesting"},
+    {"q": "Bug apa yang bikin semangat?", "a": "Bug found"},
 ]
 
 # Auto reply internal state
@@ -464,45 +444,42 @@ auto_reply_state = {
 
 # Funny reply templates (max 5 words each)
 FUNNY_REPLIES = [
-    "Wkwk kreatif juga kamu 😏",
-    "Hah? Mana ada såå",
-    "Otak kamu di luar sana ya? 😂",
+    "Wkwk kreatif juga 😂",
+    "Hah serius nih? 😏",
+    "Otak di luar ya? 🤯",
     "Kok bisa gitu sih 🤯",
-    "Astaga level kamu tinggi banget 🎮",
+    "Level tinggi banget 🎮",
     "Yakin? Check lagi deh 👀",
-    "Kagak salah? Serius nih? 😜",
-    "KEREN BANGET GAKESIAN 🔥🔥",
-    "Auto nangis aku 🥲😂",
-    "WAIT APA??? INI KENAPA? 🤯",
-    "KAMU NIH EMANG PASTI? 👀",
-    "Wah ada yang salah nih 🤔",
-    "Lebay banget dah 😂🤣",
-    "Gas terus bang 👊💪",
+    "Kagak salah kan? 😜",
+    "Keren abis gak sih 🔥",
+    "Auto nangis aku 🥲",
+    "WAIT APA?? 🤯",
+    "KAMU NIH PASTI? 👀",
+    "Wah ada yang salah 🤔",
+    "Lebay banget dah 😂",
+    "Gas terus bang 👊",
     "KALAU BENER INI GILA 😂",
-    "Siap terima kasih atas partisipasi 🫡",
-    "PING PONG 🍜🫡",
-    "KACAU EMANG 🤡",
-    "GAK PAHAM tapi oke 🤝",
-    "Bro ini level berapa 🫡",
+    "Makasih participate 🫡",
+    "PING PONG 🍜",
+    "Gak paham tapi oke 🤝",
+    "Bro level berapa 🫡",
     "Mantap jiwa bang 👊🔥",
-    "KODE RED 🤖✨",
-    "NOTED 📝📝📝",
-    "AUTOMATIC LIKE ✅✅✅",
-    "SALAH KAPRAH GANS 😎",
-    "WAW KEREN BANGET ☄️✨",
-    "SAD BOYS 💔💔",
-    "HARDEST ROCK 🎸🎸",
-    "GAMERS ONLY 🎮🫡",
+    "KODE RED 🤖",
+    "NOTED 📝",
+    "AUTO LIKE ✅",
+    "SALAH KAPRAH 😎",
+    "WAW KEREN BANGET ☄️",
+    "SAD BOYS 💔",
+    "GAMERS ONLY 🎮",
     "NO COMMENTS 📝❌",
-    "WAIT WAIT WAIT 🤯🤯",
-    "FIX TIE 🧍‍♂️🧍‍♀️",
-    "LUAR BIASA GANS 😍😍",
-    "CIUM TEFLON 🍳🫣",
+    "WAIT WAIT WAIT 🤯",
+    "FIX TIE 🧍",
+    "LUAR BIASA GANS 😍",
     "MATA GUA SISA SATU 👁️",
-    "BENER BANGET ITU 🤝🤝",
-    "YANG MANA? 🤯🫣",
+    "BENER BANGET ITU 🤝",
+    "YANG MANA? 🤯",
     "PANIK GANS 😭😂",
-    "FIX INI YANG BENER ✅✅",
+    "FIX INI YANG BENER ✅",
 ]
 
 
@@ -513,33 +490,26 @@ def gen_auto_reply(username, comment):
     if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
         replies = [
             "Yaelah gitu aja tahu 🤔",
-            "Nah itu dia pertanyaananya 😏",
-            "JANGAN JADIIN GUYON YA 😂",
-            "NahLO bingung gak nih 😜",
+            "Nah itu dia pertanyaan 🤔",
             "Bro pertanyaan itu susah 👀",
         ]
     elif any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk"]):
         replies = [
-            "Ketawa apaan sih 😂😂",
-            "Ngakak parah 😭😭",
-            "LUAR BIASA INI 😂🔥",
-            "KOCAK BANGET 😭😭😂",
+            "Ketawa apaan sih 😂",
+            "Ngakak parah 😭",
+            "LUAR BIASA INI 😂",
         ]
     elif any(w in words for w in ["keren", "mantap", "bagus", "good", "nice"]):
         replies = [
-            "SALAH KAPRAH 😎😎",
-            "ENGGAK ENGGAK 🥲🥲",
-            "BENER BANGET TU 🙌🙌",
-            "WKWK KAMU PASTI GOKIL 🤯🔥",
-            "AUTOMATIC SABUNGAN 🫡",
+            "ENGGAK ENGGAK 🥲",
+            "BENER BANGET TU 🙌",
+            "WKWK KAMU GOKIL 🤯",
         ]
     elif any(w in words for w in ["mau", "dih", "dong", "donk", "pls"]):
         replies = [
             "Gak semurah itu bang 😂",
-            "WAIT APA KATA MU 🫣",
-            "SIAP BOS 🫡🫡",
+            "SIAP BOS 🫡",
             "OKE OKE TUNGGU 📝",
-            "GAK DIKIRAIN GINI 😏",
         ]
     else:
         replies = FUNNY_REPLIES
@@ -588,7 +558,6 @@ def _auto_reply_loop():
                     "original_text": f"@{username}: {reply}",
                 }
                 socketio.emit("auto_reply_display", payload)
-                log("EVENT", "AUTO_REPLY", f"  → emitted auto_reply_display to all clients")
                 speak_async(f"{username} bilang {reply}")
 
                 # Update last comment time
@@ -616,16 +585,10 @@ def _auto_reply_loop():
 def _fire_riddle_ask():
     """Timer callback: after idle_timeout, post riddle question."""
     global auto_reply_state
-    import sys
-    sys.stderr.write(f"[DEBUG _fire_riddle_ask] called at {time.time()}\n")
-    sys.stderr.flush()
     if not auto_reply_settings["enabled"]:
-        sys.stderr.write("[DEBUG _fire_riddle_ask] early return: not enabled\n")
         return
 
     r = gen_riddle()
-    sys.stderr.write(f"[DEBUG _fire_riddle_ask] riddle: {r['q']}\n")
-    sys.stderr.flush()
     auto_reply_state["current_riddle"] = r
 
     ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
@@ -642,7 +605,6 @@ def _fire_riddle_ask():
     }
     socketio.emit("riddle_display", payload)
     log("EVENT", "AUTO_REPLY", f"RIDDLE ASK: {r['q']}")
-    log("INFO", "AUTO_REPLY", f"  → emitted riddle_display, keys: {list(payload.keys())}")
 
     # Schedule answer in riddle_interval_sec
     interval = auto_reply_settings["riddle_interval_sec"]
@@ -662,7 +624,7 @@ def _fire_riddle_answer():
     if not r:
         return
 
-    ascii_a = text_to_ascii(f"Jawabannya: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    ascii_a = text_to_ascii(f"Jawaban: {r['a']}", font=settings.get("font", "ansi_shadow"))
     payload = {
         "type": "riddle_answer",
         "question": r["q"],
@@ -673,7 +635,7 @@ def _fire_riddle_answer():
     state["active_display"] = {
         "content": ascii_a,
         "type": "text",
-        "original_text": f"Jawabannya: {r['a']}",
+        "original_text": f"Jawaban: {r['a']}",
     }
     socketio.emit("riddle_display", payload)
     speak_async(f"Jawabannya adalah {r['a']}")
