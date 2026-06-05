@@ -1292,7 +1292,31 @@ def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
         else:
             socketio.emit("tiktok_gift", {"username": username, "gift": gift_name})
 
-    tiktok_conn = TikTokConnector(room_id, on_comment, on_gift, web_proxy=web_proxy, ws_proxy=ws_proxy)
+    def on_connect():
+        state["tiktok_status"] = "CONNECTED"
+        socketio.emit("status_update", {"tiktok_status": "CONNECTED"})
+        log("INFO", "TIKTOK", "Connected successfully")
+
+    def on_error(msg):
+        state["tiktok_status"] = "ERROR"
+        socketio.emit("status_update", {"tiktok_status": "ERROR", "tiktok_error": msg})
+        log("ERROR", "TIKTOK", f"Connection failed: {msg}")
+
+    def on_retry(attempt, last_error):
+        state["tiktok_status"] = f"RETRY ({attempt})"
+        socketio.emit("status_update", {"tiktok_status": f"RETRY ({attempt})", "tiktok_error": last_error})
+        log("INFO", "TIKTOK", f"Retry {attempt} — {last_error}")
+
+    tiktok_conn = TikTokConnector(
+        room_id,
+        on_comment=on_comment,
+        on_gift=on_gift,
+        on_connect_callback=on_connect,
+        on_error_callback=on_error,
+        on_retry_callback=on_retry,
+        web_proxy=web_proxy,
+        ws_proxy=ws_proxy,
+    )
     tiktok_conn.connect()
 
 # ─── GIFT ART NORMALIZER ────────────────────────────────────
