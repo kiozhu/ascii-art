@@ -1,39 +1,31 @@
 # ASCII Art Overlay System
 
-Real-time ASCII art overlay for live streaming (OBS). Flask + SocketIO powered, TikTok integration, animated gift display, matrix rain background, screenshot & recording, full Control Panel.
+Real-time ASCII art overlay for live streaming (OBS). Flask + Socket.IO powered, TikTok Live chat integration, AI auto-reply with riddles, animated gift display, TTS voice, matrix rain, screenshot & recording, full Control Panel.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Clone the repo
+### 1. Clone & Install
 
 ```bash
 git clone git@github.com:kiozhu/ascii-art.git
 cd ascii-art
-```
-
-### 2. Install dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment
+### 2. Configure
 
 ```bash
 cp .env.example .env
+# Edit .env — only TELEGRAM_BOT_TOKEN is required; TikTok is optional
 ```
-
-Edit `.env` and fill in your credentials:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-TIKTOK_USERNAME=your_tiktok_username
-TIKTOK_PASSWORD=your_tiktok_password
 ```
 
-### 4. Run
+### 3. Run
 
 ```bash
 python app.py
@@ -42,16 +34,15 @@ python app.py
 Open your browser:
 - **Overlay:** `http://localhost:5050` (use in OBS)
 - **Control Panel:** `http://localhost:5050/control`
-- **Logs:** `http://localhost:5050/logs`
 
 ---
 
 ## 🖥️ OBS Setup
 
-1. In OBS, add a **Browser Source**
+1. Add a **Browser Source** in OBS
 2. URL: `http://localhost:5050` (or `http://YOUR_IP:5050` for remote)
 3. Width: `1920`, Height: `1080`
-4. CSS custom style:
+4. CSS:
    ```css
    body { overflow: hidden; margin: 0; padding: 0; background: #000; }
    ```
@@ -61,87 +52,62 @@ Open your browser:
 
 ## ⚙️ Configuration
 
-Copy `.env.example` to `.env` and set:
+Copy `.env.example` to `.env`:
 
-| Variable | Description |
-|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token for bot control |
-| `TIKTOK_USERNAME` | TikTok username for live chat |
-| `TIKTOK_PASSWORD` | TikTok password |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot token for bot control |
+| `TIKTOK_USERNAME` | Optional | TikTok username to monitor (no password needed) |
 
-### Control Panel Options
+> **No TikTok credentials needed** — TikTokLive uses anonymous WebSocket connection via username only.
 
-| Setting | Options |
-|---------|---------|
-| **Font** | ansi_shadow, blocky, starwars, banner3, banner4, banner, rounded |
-| **FG Color** | Hex color (e.g. `#ffd700`) |
-| **BG Color** | Hex background color |
-| **Gradient** | Top/Mid/Bot colors for gradient effect |
-| **Matrix** | Toggle on/off, speed, color |
-| **Screenshot** | Flash effect, aspect ratio (square/vertical/horizontal/none) |
-| **Recording** | Duration 3–30s, auto or manual trigger |
-| **Gift Animation** | Blink duration, display duration, typing speed, sound on/off |
+### TikTok Residential Proxy (VPS Only)
 
----
+If running on a VPS, TikTok may block the connection due to data-center IP. Add a residential proxy:
 
-## 🎮 Control Panel — Full Manual Control (No Telegram/TikTok Required)
-
-The system works **100% without Telegram or TikTok**. All features are accessible directly from the Control Panel.
-
-### How to Access / Cara Mengakses
-
-| Scenario | English | Indonesia |
-|----------|---------|-----------|
-| Same computer | `http://localhost:5050/control` | Buka di browser yang sama |
-| Same network | `http://192.168.x.x:5050/control` |Dari perangkat lain di jaringan yang sama |
-| Remote / publik | `http://43.153.202.49:5050/control` | Kalau server accessible dari internet |
+1. Get a residential proxy (Bright Data, Oxylabs, SmartProxy)
+2. In **Control Panel → TikTok Live**, enter your proxy URL:
+   ```
+   http://user:pass@host:port
+   ```
+3. Click **CONNECT**
 
 ---
 
-### Features Overview / Ringkasan Fitur
+## 🎮 Features
 
-| Feature | English | Indonesia |
-|---------|---------|-----------|
-| **Manual Text** | Type text → pick font/color/gradient → instantly shown on overlay | Ketik teks → pilih font/warna/gradient → langsung muncul di overlay |
-| **Image Upload** | Upload image → converted to ASCII art → displayed | Upload gambar → dikonversi ke ASCII art → ditampilkan |
-| **Video Upload** | Upload video → frame-by-frame ASCII display | Upload video → tampilan ASCII per frame |
-| **Gift Test** | Click test button → play gift animation without TikTok live | Klik tombol test → mainin animasi gift tanpa TikTok live |
-| **Matrix Toggle** | Turn matrix rain on/off, adjust speed & color | Nyalakan/matikan matrix rain, atur kecepatan & warna |
-| **Screenshot** | Manual capture with flash effect & aspect ratio options | Capture manual dengan efek flash & pilihan rasio aspek |
-| **Recording** | Record animation clip 3–30 seconds | Rekam klip animasi 3–30 detik |
-| **Font Cycle** | Rotate through fonts without restarting | Ganti-ganti font tanpa restart server |
-| **Clear Display** | Instantly clear all overlay content | Hapus semua konten overlay seketika |
+### Control Panel (`/control`)
 
----
+| Tab | Features |
+|-----|----------|
+| **DISPLAY** | Manual text, image upload, video upload, clear display |
+| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode |
+| **TIKTOK LIVE** | Connect by username, residential proxy support, room ID input |
+| **GIFT** | Test animations, blink/duration/speed/sound settings |
+| **🤖 AUTO REPLY** | Enable/disable, queue monitor, riddle list, test comment/riddle |
 
-### TikTok + Telegram Integration (Optional / Opsional)
+### TikTok Live Integration
 
-These are **optional enhancements** — they enable automatic triggers during live streams:
+- **Gift display** — 30+ animated ASCII art gifts (rose, crown, rocket, dragon, etc.)
+- **Chat comments** — displayed as badges on overlay
+- **Username display** — ASCII art username with glitch effect
+- **Robot eyes animation** — 4-scene sequence per gift
+- **TTS voice** — gTTS reads username + reply aloud
 
-| Integration | English | Indonesia |
-|------------|---------|-----------|
-| **TikTok Live** | Auto-display gifts & chat comments during live stream | Tampilkan otomatis gifts & komentar chat saat live |
-| **Telegram Bot** | Send commands via Telegram to control overlay | Kirim perintah via Telegram untuk kontrol overlay |
+### AI Auto-Reply (🤖 Auto Reply Tab)
 
-> **Without TikTok/Telegram:** Use the Control Panel directly — all features are available.
+**Riddle system** — Background tebak-tebakan cycle:
+- ASK → 5s → ANSWER → 5s → CTA → 5s → next riddle
+- 40 riddles (absurd, logika, budaya, tech)
+- Skipped automatically when comment queue has items
 
----
+**Comment reply** — Top priority over riddles:
+- Strict serial: **1 reply every 7 seconds**
+- No batching, no overlap ever
+- Reply lock held during full display duration
+- 36 funny/sopan replies (≤5 words each)
 
-## 🎁 Gift Animation Flow
-
-1. **Robot Eyes** — 4-scene animation (neutral → lookLeft → lookRight → close)
-2. **Thanks Text** — "terima kasih @username" with glitch effect
-3. **Username ASCII Art** — username rendered in ansi_shadow font, pulsing glow
-
----
-
-## 🛠️ Tech Stack
-
-- **Flask** + **SocketIO** — real-time web server
-- **pyfiglet** — ASCII text rendering
-- **html2canvas** — screenshot capture
-- **TikTok Pcap** — live chat integration
-- **Telegram Bot API** — bot control interface
+**TTS** — gTTS reads all riddle phases + replies aloud
 
 ---
 
@@ -149,21 +115,21 @@ These are **optional enhancements** — they enable automatic triggers during li
 
 ```
 ascii-art/
-├── app.py                  # Main Flask app + WebSocket handlers
-├── app_gift_section.py     # Gift animation server-side logic
-├── converters/
-│   ├── text.py            # Text to ASCII conversion
-│   ├── image.py            # Image to ASCII conversion
-│   ├── video.py            # Video frame to ASCII
-│   └── block_art.py       # Block art converter
-├── templates/
-│   ├── overlay.html        # Main overlay (OBS view)
-│   ├── control.html       # Streamer control panel
-│   └── logs.html          # Event logs viewer
-├── telegram_bot/
-│   └── bot.py             # Telegram bot integration
+├── app.py                  # Flask + Socket.IO + TTS + auto-reply loop
+├── app_gift_section.py     # Gift animation server-side
 ├── tiktok/
-│   └── connector.py       # TikTok live chat connector
+│   └── connector.py        # TikTokLive WebSocket connector (web_proxy/ws_proxy)
+├── converters/
+│   ├── text.py             # Text → ASCII
+│   ├── image.py            # Image → ASCII
+│   ├── video.py            # Video frame → ASCII
+│   └── block_art.py        # Block art
+├── templates/
+│   ├── overlay.html         # OBS overlay (canvas + Socket.IO client)
+│   ├── control.html        # Streamer control panel (5 tabs)
+│   └── logs.html           # Event logs
+├── telegram_bot/
+│   └── bot.py              # Telegram bot commands
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -171,4 +137,10 @@ ascii-art/
 
 ---
 
-**Streaming setup guide:** [OBS Browser Source](https://obsproject.com/kb/browser-source)
+## 🛠️ Tech Stack
+
+- **Flask** + **Socket.IO** — real-time web server & WebSocket
+- **pyfiglet** — ASCII text rendering
+- **TikTokLive** — TikTok live chat WebSocket (v6.6.5)
+- **gTTS** — Google text-to-speech (server-side, suara cewek)
+- **eventlet** / **threading** — async background processing
