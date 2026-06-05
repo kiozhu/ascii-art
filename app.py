@@ -487,6 +487,7 @@ auto_reply_state = {
     "riddle_timer": None,       # threading.Timer for next riddle action
     "loop_thread": None,        # background processing thread
     "running": False,
+    "riddle_locked": False,     # True during riddle ASK→ANS→CTA cycle, queues comments
 }
 
 # Funny reply templates (max 5 words each)
@@ -583,6 +584,12 @@ def _auto_reply_loop():
         now = time.time()
         has_comment = len(auto_reply_state["comment_queue"]) > 0
 
+        # Skip processing if riddle cycle is active (ASK→ANS→CTA)
+        # Comments stay queued until lock is released after CTA
+        if auto_reply_state["riddle_locked"]:
+            time.sleep(0.5)
+            continue
+
         if has_comment:
             # Process all queued comments (FIFO)
             while auto_reply_state["comment_queue"]:
@@ -634,6 +641,9 @@ def _fire_riddle_ask():
     global auto_reply_state
     if not auto_reply_settings["enabled"]:
         return
+
+    # Lock riddle cycle — queue comments until CTA done
+    auto_reply_state["riddle_locked"] = True
 
     r = gen_riddle()
     auto_reply_state["current_riddle"] = r
@@ -725,6 +735,9 @@ def _fire_cta():
     idle_sec = auto_reply_settings["idle_timeout_sec"]
     auto_reply_state["riddle_timer"] = threading.Timer(idle_sec, _fire_riddle_ask)
     auto_reply_state["riddle_timer"].start()
+
+    # Unlock after CTA — comments can now be processed again
+    auto_reply_state["riddle_locked"] = False
 
 
 def start_auto_reply_loop():
