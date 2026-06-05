@@ -933,16 +933,37 @@
       </div>
     </div>
 
-    <!-- Command reference -->
+    <!-- Telegram Config -->
     <div style="margin-top:20px;">
-      <div class="settings-section-title">📡 Telegram Commands</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
-        <div class="info-box">`/ascii display <text>` — Text biasa</div>
-        <div class="info-box">`/ascii block <text>` — Pixel block</div>
-        <div class="info-box">`/ascii big <text>` — Big ASCII</div>
-        <div class="info-box">`/ascii half <text>` — Half-block</div>
-        <div class="info-box">`/ascii image` — Reply dgn foto</div>
-        <div class="info-box">`/ascii clear` — Bersihkan</div>
+      <div class="settings-section-title">📡 Telegram Bot</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Bot Token (from @BotFather)</label>
+          <input type="text" id="telegram-bot-token" placeholder="例: 123456789:ABCdef..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Admin Chat ID (あなたのID)</label>
+          <input type="text" id="telegram-admin-id" placeholder="例: 123456789" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
+          <input type="checkbox" id="telegram-enabled" onchange="applyTelegramConfig()">
+          <span>Aktifkan Telegram Bot</span>
+        </label>
+        <button class="btn btn-outline btn-sm" onclick="applyTelegramConfig()">💾 SIMPAN & AKTIFKAN</button>
+        <span id="telegram-save-status" style="font-size:0.7rem;opacity:0.6;"></span>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.65rem;opacity:0.5;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Commands</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="info-box">`/ascii display <text>` — Text biasa</div>
+          <div class="info-box">`/ascii block <text>` — Pixel block</div>
+          <div class="info-box">`/ascii big <text>` — Big ASCII</div>
+          <div class="info-box">`/ascii half <text>` — Half-block</div>
+          <div class="info-box">`/ascii image` — Reply dgn foto</div>
+          <div class="info-box">`/ascii clear` — Bersihkan</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1297,6 +1318,42 @@ function resetSettings() {
   addLog("INFO", "Settings reset to default");
 }
 
+// ── Telegram Config ─────────────────────────────────────────
+function applyTelegramConfig() {
+  const token = document.getElementById("telegram-bot-token").value.trim();
+  const adminId = document.getElementById("telegram-admin-id").value.trim();
+  const enabled = document.getElementById("telegram-enabled").checked;
+  const statusEl = document.getElementById("telegram-save-status");
+
+  fetch(`${window.location.origin}/api/telegram/config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, admin_chat_id: adminId, enabled })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      statusEl.textContent = d.enabled ? "✅ Telegram bot aktif" : "⏸️ Telegram bot mati";
+      addLog(d.enabled ? "EVENT" : "INFO", "Telegram config saved — " + (d.enabled ? "bot aktif" : "bot nonaktif"));
+    } else {
+      statusEl.textContent = "❌ Gagal menyimpan";
+    }
+    setTimeout(() => { statusEl.textContent = ""; }, 3000);
+  })
+  .catch(e => {
+    statusEl.textContent = "❌ Error: " + e;
+    addLog("ERROR", "Telegram config error: " + e);
+  });
+}
+
+function loadTelegramStatus() {
+  fetch(`${window.location.origin}/api/telegram/status`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById("telegram-enabled").checked = d.enabled;
+    });
+}
+
 // ── Logs ───────────────────────────────────────────────────
 function addLog(level, msg) {
   const box = document.getElementById("logs-content");
@@ -1452,6 +1509,8 @@ function loadRiddles() {
 // Init
 addLog("INFO", "Control panel loaded");
 addLog("INFO", `Server: ${SERVER}`);
+loadTelegramStatus();
+loadRiddles();
 </script>
 </body>
 </html>

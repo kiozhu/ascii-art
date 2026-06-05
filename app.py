@@ -1314,17 +1314,100 @@ def api_clear():
 # ─── TELEGRAM BOT ───────────────────────────────────────────
 telegram_bot = None
 
-def init_telegram():
-    """Initialize Telegram bot from .env config"""
+def stop_telegram():
+    """Stop current Telegram bot if running"""
     global telegram_bot
-    from telegram_bot.bot import start_telegram_bot
-    enabled = os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
-    if not enabled:
-        log("INFO", "TELEGRAM", "Telegram trigger disabled (TELEGRAM_ENABLED=false)")
-        return
-    telegram_bot = start_telegram_bot()
     if telegram_bot:
+        telegram_bot.stop()
+        telegram_bot = None
+
+def init_telegram(token=None, admin_chat_id=None, enabled=None):
+    """Initialize Telegram bot — reads from .env or accepts runtime overrides"""
+    global telegram_bot
+    # Stop existing bot first
+    stop_telegram()
+
+    from telegram_bot.bot import start_telegram_bot
+    # Runtime overrides take precedence over .env
+    bot_token = token if token is not None else os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    admin_id = admin_chat_id if admin_chat_id is not None else os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
+    telegram_enabled = enabled if enabled is not None else os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
+
+    if not telegram_enabled:
+        log("INFO", "TELEGRAM", "Telegram trigger disabled")
+        return None
+    if not bot_token or bot_token == "***":
+        log("INFO", "TELEGRAM", "No bot token configured")
+        return None
+
+    admin_chat_id_int = int(admin_id) if admin_id.isdigit() else None
+    bot = start_telegram_bot(bot_token, admin_chat_id_int)
+    if bot:
         log("INFO", "TELEGRAM", "Telegram bot activated")
+    return bot
+
+@app.route("/api/telegram/config", methods=["POST"])
+def api_telegram_config():
+    """Update Telegram config at runtime — token + enabled + admin_chat_id"""
+    global telegram_bot
+    data = request.get_json() or {}
+    token = data.get("token", "").strip()
+    admin_chat_id = data.get("admin_chat_id", "").strip()
+    enabled = data.get("enabled", False)
+    chat_id_str = str(admin_chat_id) if admin_chat_id else ""
+
+    # Persist to .env
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            env_lines = f.readlines()
+
+    updated = False
+    new_lines = []
+    keys_to_set = {
+        "TELEGRAM_BOT_TOKEN": token,
+        "TELEGRAM_ADMIN_CHAT_ID": chat_id_str,
+        "TELEGRAM_ENABLED": "true" if enabled else "false",
+    }
+    keys_found = set()
+    for line in env_lines:
+        stripped = line.strip()
+        matched = False
+        for key in keys_to_set:
+            if stripped.startswith(f"{key}="):
+                new_lines.append(f"{key}={keys_to_set[key]}\n")
+                keys_found.add(key)
+                matched = True
+                updated = True
+                break
+        if not matched:
+            new_lines.append(line)
+    for key, val in keys_to_set.items():
+        if key not in keys_found:
+            new_lines.append(f"{key}={val}\n")
+            updated = True
+    if updated:
+        with open(env_path, "w") as f:
+            f.writelines(new_lines)
+
+    # Reload from .env
+    os.environ["TELEGRAM_BOT_TOKEN"] = token
+    os.environ["TELEGRAM_ADMIN_CHAT_ID"] = chat_id_str
+    os.environ["TELEGRAM_ENABLED"] = "true" if enabled else "false"
+
+    # Restart bot with new config
+    init_telegram(token=token, admin_chat_id=chat_id_str, enabled=enabled)
+    return jsonify({"ok": True, "enabled": enabled, "token_set": bool(token)})
+
+@app.route("/api/telegram/status")
+def api_telegram_status():
+    """Return Telegram bot status"""
+    global telegram_bot
+    return jsonify({
+        "enabled": telegram_bot is not None,
+        "token_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip()),
+    })
 
 # ─── SERVER STATUS ─────────────────────────────────────────
 @app.route("/api/health")

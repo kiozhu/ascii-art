@@ -352,23 +352,19 @@ class TelegramBot:
         print(f"[TELEGRAM] Bot stopped")
 
 
-def start_telegram_bot():
-    """Initialize and start Telegram bot from .env config"""
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    admin_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
-    prefix = os.getenv("TELEGRAM_COMMAND_PREFIX", "ascii").strip()
-    enabled = os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
-
-    if not enabled:
-        print("[TELEGRAM] Disabled (TELEGRAM_ENABLED=false)")
-        return None
+def start_telegram_bot(bot_token=None, admin_chat_id=None, command_prefix=None):
+    """Initialize and start Telegram bot — accepts runtime config or falls back to .env"""
+    # Runtime overrides; if not provided, read from environment
+    token = bot_token if bot_token is not None else os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    admin_id = admin_chat_id if admin_chat_id is not None else os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
+    prefix = command_prefix if command_prefix is not None else os.getenv("TELEGRAM_COMMAND_PREFIX", "ascii").strip()
 
     if not token or token == "***":
-        print("[TELEGRAM] No bot token configured (TELEGRAM_BOT_TOKEN is empty)")
+        print("[TELEGRAM] No bot token configured")
         return None
 
-    admin_chat_id = int(admin_id) if admin_id.isdigit() else None
-    bot = TelegramBot(token, admin_chat_id, prefix)
+    admin_chat_id_int = int(admin_id) if admin_id.isdigit() else None
+    bot = TelegramBot(token, admin_chat_id_int, prefix)
     bot.start()
     return bot
 
