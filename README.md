@@ -130,6 +130,12 @@ Reply to a photo with `/ascii image` to send it to overlay.
 - **Riddle generation** — creates new tebak-tebakan dynamically (JSON: `{"q": "...", "a": "..."}`)
 - Falls back to static pool if LLM unavailable
 
+**Fallback indicator** — overlay visually distinguishes LLM vs static:
+- `[AI]` tag = LLM-generated riddles (cyan question / gold answer)
+- `[static]` tag = static pool fallback (red question / red answer / red glow)
+- TTS appends "[static]" when reading fallback answers
+- Logs show `[RIDDLE ASK: [static]]` vs `[RIDDLE ASK: ...]` to track fallback events
+
 **Riddle system** — background tebak-tebakan cycle:
 - ASK → 5s → ANSWER → 5s → CTA → 5s → next riddle
 - 40 static riddles (absurd, logika, budaya, tech) — replaced by LLM when enabled

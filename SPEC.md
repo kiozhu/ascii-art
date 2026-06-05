@@ -82,6 +82,12 @@ When LLM is disabled — uses static fallback:
 - 36 reply templates
 - Same serial lock / 7s display / priority logic
 
+**Fallback indicator** — overlay visually distinguishes LLM vs static:
+- `[AI]` tag = LLM-generated riddles (cyan question / gold answer)
+- `[static]` tag = static pool fallback (red question / red answer / red glow)
+- TTS appends "[static]" when reading fallback answers
+- Logs show `[RIDDLE ASK: [static]]` vs `[RIDDLE ASK: ...]` to track fallback events
+
 ### Riddle Cycle (background)
 
 ```
