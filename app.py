@@ -1169,6 +1169,7 @@ def api_auto_reply_test_riddle():
         "question": r["q"],
         "ascii_content": ascii_q,
         "timestamp": datetime.now().isoformat(),
+        "fallback": r.get("fallback", False),
     })
     # Fire answer after 5 seconds
     threading.Timer(5.0, lambda: socketio.emit("riddle_display", {
@@ -1177,6 +1178,7 @@ def api_auto_reply_test_riddle():
         "answer": r["a"],
         "ascii_content": ascii_a,
         "timestamp": datetime.now().isoformat(),
+        "fallback": r.get("fallback", False),
     })).start()
     return jsonify({"ok": True, "riddle": r})
 
