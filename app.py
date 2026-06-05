@@ -48,10 +48,17 @@ os.makedirs(AUDIO_CACHE_DIR, exist_ok=True)
 def speak_text(text, lang="id"):
     """Generate MP3 from text via gTTS, save to cache, return filename"""
     try:
-        safe_key = text.replace(" ", "_")[:30]
-        cache_file = f"{AUDIO_CACHE_DIR}/{safe_key}_{hash(text) % 100000}.mp3"
+        # Defense-in-depth: strip emoji before TTS so gTTS doesn't try to speak them
+        clean = _remove_emoji(text).strip()
+        if not clean:
+            return None  # Don't speak empty/emoji-only text
+        # Sanitize filename: remove characters invalid on Windows/Linux
+        safe_key = re.sub(r'[?<>:"/\\|*]', '', clean).replace(" ", "_")[:30]
+        if not safe_key:
+            safe_key = "tts"
+        cache_file = f"{AUDIO_CACHE_DIR}/{safe_key}_{hash(clean) % 100000}.mp3"
         if not os.path.exists(cache_file):
-            tts = gTTS(text=text, lang=lang, slow=False)
+            tts = gTTS(text=clean, lang=lang, slow=False)
             tts.save(cache_file)
         return cache_file
     except Exception as e:
@@ -487,25 +494,25 @@ RIDDLES = [
 # ─── CTA / SARAN KOMENTAR ─────────────────────────────────────
 # Diselingi antara tebak-tebakan, supaya ga monoton
 CTAS = [
-    "Mau tau jawaban? Ketik di kolom komentar ya! 👇",
-    "Kirim jawaban kamu di komentar dong! 😄",
-    "Coba tebak! Tulis di komentar 👇",
-    "Gas jawab di kolom komentar! 👇",
+    "Mau tau jawaban? Ketik di kolom komentar ya!",
+    "Kirim jawaban kamu di komentar dong!",
+    "Coba tebak! Tulis di komentar",
+    "Gas jawab di kolom komentar!",
     "Kirim jawaban terbaikmu di kolom komentar!",
-    "Ayoo coba tebak, ketik jawaban di kolom komentar! 🙌",
-    "Kalo tau jawabannya, tulis di komentar ya! 👇",
-    "Gausah malu, ketik jawaban di komentar! 😎",
-    "Tebak dulu, baru ketik jawaban! 👇",
-    "Yang tau langsung tulis di kolom komentar! 💪",
-    "Chat di kolom bawah ya, jangan malu! 😂",
-    "Ketik jawaban kamu di komentar, cepetan! ⏰",
-    "Ayam nyebrang dulu ya... eh maksudnya ketik jawaban! 🐔",
-    "Jgn lupa ketik jawaban di kolom komentar 👇",
-    "Siapa dulu yg tau? Coba ketik di komentar! 😄",
-    "Ketik jawaban terbaikmu di kolom komentar! 🙌",
-    "Gas ketik jawabanmu di kolom komentar! 😂",
-    "ayo tulis jawabanmu di kolom komentar! 👇",
-    "siapa yg tau? ketik di kolom komentar 💬",
+    "Ayoo coba tebak, ketik jawaban di kolom komentar!",
+    "Kalo tau jawabannya, tulis di komentar ya!",
+    "Gausah malu, ketik jawaban di komentar!",
+    "Tebak dulu, baru ketik jawaban!",
+    "Yang tau langsung tulis di kolom komentar!",
+    "Chat di kolom bawah ya, jangan malu!",
+    "Ketik jawaban kamu di komentar, cepetan!",
+    "Ayam nyebrang dulu ya... eh maksudnya ketik jawaban!",
+    "Jgn lupa ketik jawaban di kolom komentar",
+    "Siapa dulu yg tau? Coba ketik di komentar!",
+    "Ketik jawaban terbaikmu di kolom komentar!",
+    "Gas ketik jawabanmu di kolom komentar!",
+    "ayo tulis jawabanmu di kolom komentar!",
+    "siapa yg tau? ketik di kolom komentar",
 ]
 
 # Auto reply internal state
@@ -546,7 +553,7 @@ FUNNY_REPLIES = [
     "Wah benar juga",
     "Lebay banget dah",
     "Gas terus bang",
-    "KALAU BENER INI GILA",
+    "BENER BANGET INI",
     "Makasih participate",
     "PING PONG",
     "Gak paham tapi oke",
@@ -567,16 +574,17 @@ FUNNY_REPLIES = [
 ]
 
 
-def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None):
+def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, system=None):
     """Call MiniMax LLM API (Anthropic Messages API style).
 
     The MiniMax API at https://api.minimax.io/anthropic is a clone of
     Anthropic's Messages API, not OpenAI's chat completions. So we use:
       - URL:    {base_url}/v1/messages
       - Auth:   x-api-key header (NOT Authorization: Bearer)
-      - Body:   {"model": ..., "messages": [...], "max_tokens": ...}
+      - Body:   {"model": ..., "messages": [...], "max_tokens": ..., ["system": "..."]}
       - Reply:  data["content"][0]["text"]   (NOT data["choices"][0]["message"]["content"])
 
+    `system` is an optional system prompt (Anthropic-style, separate from messages).
     Returns the text reply (str) or None on failure.
     """
     api_key = auto_reply_settings.get("llm_api_key", "").strip()
@@ -599,6 +607,8 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None):
     }
     if temperature is not None:
         payload["temperature"] = temperature
+    if system:
+        payload["system"] = system
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
         # Don't raise — let the caller log the body
@@ -621,17 +631,31 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None):
         return None
 
 
-def call_minimax(prompt, max_words=5):
-    """Call MiniMax LLM API and return response text (≤ max_words)."""
+def call_minimax(prompt, max_words=5, messages=None, system=None):
+    """Call MiniMax LLM API and return response text (≤ max_words).
+
+    If `messages` is provided, use that instead of building a single user
+    message from `prompt`. If `system` is provided, pass as Anthropic-style
+    system prompt.
+    """
     # RTK: optionally reduce max_tokens from 30→20
     mt = 20 if auto_reply_settings.get("rtk_reduce_max_tokens") else 30
+    if messages is None:
+        messages = [{"role": "user", "content": prompt}]
     text = _llm_request(
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         max_tokens=mt,
         temperature=0.9,
+        system=system,
     )
     if not text:
         return None
+    # Strip code-fence and surrounding quotes
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`").strip()
+    if text.startswith('"') and text.endswith('"'):
+        text = text[1:-1].strip()
     # Trim to max_words
     words = text.strip().split()
     if len(words) > max_words:
@@ -817,19 +841,86 @@ def _rtk_pick_static_reply(comment):
 
 
 def _rtk_build_prompt(comment, username, *, short=True):
-    """Build the LLM prompt — compact (RTK) or verbose (original)."""
+    """Build the LLM prompt — compact (RTK) or verbose (original).
+
+    Tuned for Indonesian TikTok-style replies:
+      - WAJIB Bahasa Indonesia
+      - Max 5 kata
+      - No emoji
+      - Sopan + lucu
+      - Match reply_style setting (funny/sarcastic/wholesome/dark)
+    """
+    style = auto_reply_settings.get("reply_style", "funny")
     if short and auto_reply_settings.get("rtk_short_prompts", True):
-        # Compact: ~50% fewer input tokens
+        # Compact RTK prompt — must keep below ~50 tokens input
         return (
-            f"Balas komentar TikTok ini singkat (max 5 kata, no emoji, sopan, lucu): "
-            f"\"{comment}\""
+            f"Kamu host TikTok live. Balas komen dgn gaya {style}. "
+            f"STRICT: WAJIB Bahasa Indonesia. Maks 5 kata. TANPA emoji. "
+            f"Sopan & lucu. WAJIB relevan ke isi komen. "
+            f"Komen: \"{comment}\" (user: @{username}). "
+            f"Output cuma reply-nya."
         )
     return (
-        f"Buatin reply lucu, RAMAH, dan SOPAN max 5 kata untuk komentar TikTok: \"{comment}\". "
-        f"Jangan pakai emoji sama sekali, gak boleh vulgar atau gak sopan. "
-        f"Contoh: 'Wah bagus nih pertanyaan' atau 'Komedian nih'. "
-        f"Username: @{username}"
+        f"Kamu adalah host live TikTok yang asik dan ngakak. Balas komentar dengan gaya: {style}. "
+        f"STRICT RULES:\n"
+        f"1. WAJIB Bahasa Indonesia (campur slang santai gak apa-apa, tapi inti kalimat Indonesia)\n"
+        f"2. Maksimal 5 kata. Lebih pendek lebih baik.\n"
+        f"3. TANPA emoji sama sekali\n"
+        f"4. Sopan, gak vulgar, gak SARA\n"
+        f"5. Lucu / nyambung sama komennya\n\n"
+        f"Contoh reply bener:\n"
+        f"- komen 'keren banget' → 'Makasih bos!'\n"
+        f"- komen 'kapan live lagi' → 'Besok pagi jam 8'\n"
+        f"- komen 'lucu deh' → 'Haha kamu juga'\n"
+        f"- komen 'mau mobil' → 'Amin semoga dapet'\n\n"
+        f"Contoh SALAH (jangan kayak gini):\n"
+        f"- 'The user wants...'  ← jangan Inggris\n"
+        f"- 'Halo semua'  ← gak nyambung komen\n"
+        f"- '😂😂😂'  ← ada emoji\n\n"
+        f"Username: @{username}\n"
+        f"Komen: \"{comment}\"\n"
+        f"Reply kamu:"
     )
+
+
+def _rtk_build_messages(comment, username, *, short=True):
+    """Build full messages array (system + user) for Anthropic Messages API.
+
+    Anthropic supports system role separately from messages. Using a system
+    prompt with strict rules gives much more reliable instruction following
+    than stuffing everything into the user message.
+    """
+    style = auto_reply_settings.get("reply_style", "funny")
+    system_prompt = (
+        "You are an Indonesian TikTok live host replying to viewer comments. "
+        "You MUST follow these rules for every reply:\n"
+        f"1. Language: Bahasa Indonesia ONLY. Never English. No 'The user wants...', no 'Sure!'. "
+        "If you would output English, translate to Indonesian first.\n"
+        "2. Length: 2-5 kata. Keep it short and punchy.\n"
+        "3. No emoji. No unicode emoji characters whatsoever.\n"
+        "4. Tone: ramah, sopan, lucu. No vulgar, no SARA, no insults.\n"
+        f"5. Style: {style} (funny=humor, sarcastic=teasing, wholesome=heartwarming, dark=edgy humor).\n"
+        "6. Output: ONLY the reply text. No prefix, no explanation, no quotation marks.\n"
+        "7. RELEVANCE: Reply HARUS relevan dengan isi komentar. Jangan generic/platitudes. "
+        "Contoh: kalau komen 'lagi galau', reply harus tentang galau/sedih/curhat. "
+        "Kalau komen 'kapan live lagi', jawab dengan jadwal/ajakan.\n"
+        "8. FORBIDDEN WORDS: Never use: gila, gilaan, sinting, edan, aneh. "
+        "These are too generic and lazy. Use specific context-aware replies instead.\n"
+        "\nExamples of good replies (in Bahasa Indonesia):\n"
+        "- 'lagi galau nih' → 'Sini cerita, gw dengerin' (NOT 'KALAU BENER INI GILA')\n"
+        "- 'kapan live lagi' → 'Besok pagi jam 8' (NOT 'Pertanyaan mantap')\n"
+        "- 'keren banget' → 'Makasih bos!'\n"
+        "- 'lucu deh' → 'Haha kamu juga'\n"
+        "- 'mau mobil' → 'Amin semoga dapet'\n"
+        "- 'hai' → 'Hai juga!'\n"
+        "- 'siap bos' → 'Mantap jiwa'\n"
+    )
+    user_prompt = _rtk_build_prompt(comment, username, short=short)
+    return [
+        {"role": "user", "content": user_prompt},
+        {"role": "assistant", "content": "OK, reply in Bahasa Indonesia. 2-5 kata. No emoji. Relevant to the comment."},
+        {"role": "user", "content": f"@{username}: \"{comment}\""},
+    ], system_prompt
 
 
 def _remove_emoji(text):
@@ -891,7 +982,9 @@ def gen_auto_reply(username, comment):
                 auto_reply_state["rtk_llm_call_timestamps"].append(time.time())
                 auto_reply_state["rtk_stats"]["llm_calls"] += 1
             prompt = _rtk_build_prompt(comment, username)
-            reply = call_minimax(prompt, max_words=5)
+            # Use full messages + system for stricter instruction following
+            messages, system_p = _rtk_build_messages(comment, username)
+            reply = call_minimax(prompt, max_words=5, messages=messages, system=system_p)
             if reply:
                 cleaned = _remove_emoji(reply)
                 # Update cache with the new reply
