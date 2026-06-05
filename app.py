@@ -576,50 +576,72 @@ def call_minimax(prompt, max_words=5):
         return None
 
 
+def _remove_emoji(text):
+    """Remove emoji characters from text for clean ASCII display + TTS."""
+    if not text:
+        return text
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002700-\U000027BF"  # dingbats
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA00-\U0001FA6F"  # chess symbols
+        "\U0001FA70-\U0001FAFF"  # symbols extended
+        "\U00002600-\U000026FF"  # misc symbols
+        "]+", flags=re.UNICODE
+    )
+    return emoji_pattern.sub("", text).strip()
+
+
 def gen_auto_reply(username, comment):
     """Generate a funny auto-reply (max 5 words). Uses MiniMax LLM if configured."""
     # Try LLM first if enabled
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
         prompt = (
             f"Buatin reply lucu, RAMAH, dan SOPAN max 5 kata untuk komentar TikTok: \"{comment}\". "
-            f"Jangan pakai emoji, gak boleh vulgar atau gak sopan. "
+            f"Jangan pakai emoji sama sekali, gak boleh vulgar atau gak sopan. "
             f"Contoh: 'Wah bagus nih pertanyaan' atau 'Komedian nih'. "
             f"Username: @{username}"
         )
         reply = call_minimax(prompt, max_words=5)
         if reply:
-            return reply
+            return _remove_emoji(reply)
         # Fall back to static if LLM fails
     words = comment.lower().split()
-    # Context-aware responses
+    # Context-aware responses (no emoji)
     if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
         replies = [
-            "Wah bagus nih pertanyaan 🤔",
-            "Nah itu dia pertanyaan 🤔",
-            "Bro kreatif juga 👀",
+            "Wah bagus nih pertanyaan",
+            "Nah itu dia pertanyaan",
+            "Bro kreatif juga",
         ]
     elif any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk"]):
         replies = [
-            "Komedian nih 😂",
-            "Lucu banget dah 🔥",
-            "Wah garing nih 😭",
+            "Komedian nih",
+            "Lucu banget dah",
+            "Wah garing nih",
         ]
     elif any(w in words for w in ["keren", "mantap", "bagus", "good", "nice"]):
         replies = [
-            "ENGGAK ENGGAK 🥲",
-            "BENER BANGET TU 🙌",
-            "WKWK KAMU GOKIL 🤯",
+            "ENGGAK ENGGAK",
+            "BENER BANGET TU",
+            "WKWK KAMU GOKIL",
         ]
     elif any(w in words for w in ["mau", "dih", "dong", "donk", "pls"]):
         replies = [
-            "Gas bos 🫡",
-            "SIAP BOS 🫡",
-            "OKE OKE TUNGGU 📝",
+            "Gas bos",
+            "SIAP BOS",
+            "OKE OKE TUNGGU",
         ]
     else:
         replies = FUNNY_REPLIES
 
     reply = random.choice(replies)
+    # Remove any stray emoji (static pool already clean but defensive)
+    reply = _remove_emoji(reply)
     # Make sure max 5 words
     reply_words = reply.split()
     if len(reply_words) > 5:
@@ -634,8 +656,7 @@ def gen_riddle():
             "Buatin tebak-tebakan lucu dalam Bahasa Indonesia yang FRIENDLY dan RAMAH. "
             "Semua jawaban harus SOPAN, gak boleh vulgar atau gak sopan. "
             "Pertanyaan max 10 kata, jawaban max 7 kata. "
-            "Format JSON saja: {\"q\": \"pertanyaan\", \"a\": \"jawaban\"}. "
-            "Tidak pakai emoji. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
+            "Tidak pakai emoji sama sekali. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
         )
         try:
             api_key = auto_reply_settings.get("llm_api_key", "").strip()
@@ -647,26 +668,25 @@ def gen_riddle():
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 60,
-                "temperature": 0.9,
+                "temperature": 0.8,
             }
             resp = requests.post(url, headers=headers, json=payload, timeout=10)
             resp.raise_for_status()
             data = resp.json()
-            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            # Parse JSON
-            import re as _re
-            m = _re.search(r'\{[^}]+\}', text)
-            if m:
-                obj = json.loads(m.group())
-                q = obj.get("q", "").strip()
-                a = obj.get("a", "").strip()
-                # Enforce word limits
-                q_words = q.split()
-                a_words = a.split()
-                if len(q_words) <= 15 and 1 <= len(a_words) <= 7 and len(a_words) >= 1:
-                    return {"q": q, "a": a, "ask_time": time.time()}
-        except Exception as e:
-            print(f"[MiniMax] Riddle gen failed: {e}")
+            raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = json.loads(raw.strip().strip("```json").strip("```").strip())
+            q = _remove_emoji(parsed.get("q", "").strip())
+            a = _remove_emoji(parsed.get("a", "").strip())
+            q_words = q.split()
+            if len(q_words) > 15:
+                q = " ".join(q_words[:15])
+            a_words = a.split()
+            if len(a_words) > 7:
+                a = " ".join(a_words[:7])
+            if q and a:
+                return {"q": q, "a": a, "ask_time": time.time()}
+        except Exception:
+            pass
     # Fallback to static pool
     r = random.choice(RIDDLES)
     return {"q": r["q"], "a": r["a"], "ask_time": time.time(), "fallback": True}
