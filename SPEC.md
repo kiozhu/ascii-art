@@ -135,10 +135,20 @@ ASK (teka-teki) → 5s → ANSWER (jawaban) → 5s → CTA (ajak comentar) → 5
 | Tab | Features |
 |-----|----------|
 | **DISPLAY** | Manual text, image upload, clear display |
-| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode |
+| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram bot config** |
 | **TIKTOK LIVE** | Connect by username, residential proxy, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
 | **🤖 AUTO REPLY** | Enable/disable, queue monitor, riddle list, test comment/riddle |
+
+### Settings Tab — Telegram Bot Section
+
+Token + admin chat ID configurable at runtime via `POST /api/telegram/config`. Bot restarts automatically on save.
+
+| Field | Description |
+|-------|-------------|
+| Bot Token | From @BotFather |
+| Admin Chat ID | From @userinfobot |
+| Aktifkan checkbox | Enable/disable bot |
 
 ---
 

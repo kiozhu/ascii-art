@@ -56,8 +56,12 @@ Copy `.env.example` to `.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot token for bot control |
+| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot token (get from @BotFather) |
+| `TELEGRAM_ADMIN_CHAT_ID` | Optional | Your Telegram chat ID (get from @userinfobot) |
+| `TELEGRAM_ENABLED` | Optional | Set `true` to enable bot, or configure via Control Panel |
 | `TIKTOK_USERNAME` | Optional | TikTok username to monitor (no password needed) |
+
+> **Telegram bot config** — Set token + chat ID directly in **Control Panel → Settings → Telegram Bot** section. No need to edit .env manually.
 
 > **No TikTok credentials needed** — TikTokLive uses anonymous WebSocket connection via username only.
 
@@ -81,7 +85,7 @@ If running on a VPS, TikTok may block the connection due to data-center IP. Add 
 | Tab | Features |
 |-----|----------|
 | **DISPLAY** | Manual text, image upload, clear display |
-| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode |
+| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram bot config** |
 | **TIKTOK LIVE** | Connect by username, residential proxy support, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
 | **🤖 AUTO REPLY** | Enable/disable, queue monitor, riddle list, test comment/riddle |
@@ -93,6 +97,25 @@ If running on a VPS, TikTok may block the connection due to data-center IP. Add 
 - **Username display** — ASCII art username with glitch effect
 - **Robot eyes animation** — 4-scene sequence per gift
 - **TTS voice** — gTTS reads username + reply aloud
+
+### Telegram Bot (`/control → Settings → Telegram Bot`)
+
+Configure bot token + admin chat ID directly from the control panel — no .env editing needed.
+
+Commands (prefix `ascii`, e.g. `/ascii display hello`):
+
+| Command | Description |
+|---------|-------------|
+| `/ascii display <text>` | Display text on overlay |
+| `/ascii big <text>` | Big ASCII art text |
+| `/ascii block <text>` | Pixel block text |
+| `/ascii half <text>` | Half-block shading |
+| `/ascii clear` | Clear overlay |
+| `/ascii tiktok <user>` | Connect to TikTok room |
+| `/ascii status` | Server status |
+| Direct text | Just type to display |
+
+Reply to a photo with `/ascii image` to send it to overlay.
 
 ### AI Auto-Reply (🤖 Auto Reply Tab)
 
