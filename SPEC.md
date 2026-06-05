@@ -131,6 +131,52 @@ ASK (teka-teki) → 5s → ANSWER (jawaban) → 5s → CTA (ajak comentar) → 5
 - Riddle timer di-reset ke `reply_display_sec` (7s) setelah reply selesai
 - 36 funny/sopan replies (≤5 words each, semua sopan)
 
+### RTK (Rush Token Killer)
+
+Token-optimization layer between triggers and LLM. Goal: cut LLM token usage 70-90% without harming UX. All strategies are **independent and runtime-tunable**.
+
+**8 strategies** (all ON by default):
+
+| # | Strategy | Default | Why |
+|---|----------|---------|-----|
+| 1 | Min-length filter | <3 char → skip | "ok", "🔥", emoji-only waste tokens |
+| 2 | Static-first routing | ON | match keyword → free reply, no LLM |
+| 3 | Per-user cooldown | 30s | 1 user = 1 LLM reply per 30s |
+| 4 | Global rate limit | 8 calls/min | hard cap via token bucket |
+| 5 | Duplicate detection | 60s window, 0.85 jaccard | same/similar text → cache hit (0 tokens) |
+| 6 | Response cache | 200 entries LRU | (comment → reply) map, FIFO evict |
+| 7 | Short prompts | ON | ~50% fewer input tokens |
+| 8 | Reduced max_tokens | ON | 30→20 reply, 60→40 riddle |
+| + | Riddle throttle | 5 min gap | 1 LLM riddle per 5 min, rest from pool |
+
+**Gate decision flow** (`_rtk_should_call_llm`):
+```
+1. too_short (len<3)        → skip, return static
+2. user_cooldown (<30s)    → skip, return static
+3. rate_limited (≥8/min)   → skip, return static
+4. cache_exact (hit)        → return cached, 0 tokens
+5. cache_similar (≥0.85)   → return cached, 0 tokens
+6. ok                      → CALL LLM, reserve slot
+```
+
+**State stored in `auto_reply_state["rtk_*"]`:**
+- `rtk_per_user_last_llm` — `{username: last_ts}` (cooldown map)
+- `rtk_recent_comments` — `[(ts, normalized_text)]` (dedup history)
+- `rtk_llm_call_timestamps` — `[ts, ...]` (token bucket)
+- `rtk_response_cache` — `{comment_key: {reply, ts}}` (LRU)
+- `rtk_last_riddle_llm_ts` — float (riddle throttle)
+- `rtk_stats` — `{llm_calls, llm_skipped, llm_cached, static_used, tokens_saved_estimate}`
+
+**API:**
+- `GET  /api/rtk/stats`  — live metrics + config dump
+- `POST /api/rtk/reset`  — clear all caches
+- `POST /api/rtk/config` — runtime config update
+- `GET  /api/status`     — now includes `rtk` field
+
+**Counter reservation before LLM call** — to prevent race condition where a fast spammy stream bypasses the cooldown, the per-user timestamp and token bucket are reserved *before* the HTTP call. If the call fails, counters stay updated; the cooldown window is still respected.
+
+**Test result**: 5 unique comments from SpamUser → 2 LLM calls + 3 skipped (60% savings).
+
 ### Display Colors
 
 | Event | Color | Label |

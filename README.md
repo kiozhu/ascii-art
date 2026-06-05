@@ -1,6 +1,6 @@
 # ASCII Art Overlay System
 
-Real-time ASCII art overlay for live streaming (OBS). Flask + Socket.IO powered, TikTok Live chat integration, AI auto-reply with riddles, animated gift display, TTS voice, matrix rain, screenshot & recording, full Control Panel.
+Real-time ASCII art overlay for live streaming (OBS). Flask + Socket.IO powered, TikTok Live chat integration, AI auto-reply with riddles, **RTK (Rush Token Killer)** for 70-90% LLM token savings, animated gift display, TTS voice, matrix rain, screenshot & recording, full Control Panel.
 
 ---
 
@@ -99,10 +99,27 @@ If running on a VPS, TikTok may block the connection due to data-center IP. Add 
 ### TikTok Live Integration
 
 - **Gift display** — 30+ animated ASCII art gifts (rose, crown, rocket, dragon, etc.)
-- **Chat comments** — displayed as badges on overlay
+- **Chat comments** — displayed as badges on overlay, fed into auto-reply queue
 - **Username display** — ASCII art username with glitch effect
 - **Robot eyes animation** — 4-scene sequence per gift
 - **TTS voice** — gTTS reads username + reply aloud
+
+**Connector** — `tiktok/connector.py` wraps TikTokLive v6.6.5 with:
+- Full status propagation: `RESOLVING → CONNECTING → CONNECTED → DISCONNECTED/ERROR/LIVE_ENDED/RETRYING:N/M`
+- 9 event handlers: CommentEvent, GiftEvent, LikeEvent, FollowEvent, JoinEvent, ShareEvent, ConnectEvent, DisconnectEvent, LiveEndEvent
+- Auto-retry with exponential backoff (3 attempts, 5s delay, longer on rate-limit)
+- Specific error type detection: `UserNotFoundError`, `UserOfflineError`, `SignatureRateLimitError`, `LiveNotFound`, `LiveEnded`, `DuplicateClientError`
+- Logger writes to stderr (visible in server console)
+- 5 callback hooks: `on_comment`, `on_gift`, `on_connect(uid, room_id)`, `on_status`, `on_error`, `on_disconnect`, `on_retry`
+
+**Field name audit** — all event field names verified against `proto/tiktok_proto.py`:
+| Event | Field | Path |
+|-------|-------|------|
+| CommentEvent | username | `event.user_info` (NOT `.user`) |
+| CommentEvent | text | `event.content` (NOT `.comment`) |
+| GiftEvent | username | `event.from_user` (NOT `.user`) |
+| GiftEvent | gift obj | `event.m_gift` (NOT `.gift`) |
+| User | name | `user.nick_name` (NOT `.nickname`) |
 
 ### Telegram Bot (`/control → Settings → Telegram Bot`)
 
@@ -169,6 +186,43 @@ Reply to a photo with `/ascii image` to send it to overlay.
 - 36 funny/sopan replies (≤5 words each) — replaced by LLM when enabled
 
 **TTS** — gTTS reads all riddle phases + replies aloud
+
+**RTK (Rush Token Killer)** — token-optimization layer that sits between triggers and LLM calls. Goal: cut LLM token usage 70-90% without harming UX.
+
+8 strategies, all on by default, all runtime-tunable:
+
+| # | Strategy | Default | Purpose |
+|---|----------|---------|---------|
+| 1 | Min-length filter | skip LLM for <3 char | skip "ok", "🔥", emoji-only |
+| 2 | Static-first routing | ON | try keyword-matched static reply first |
+| 3 | Per-user cooldown | 30s | 1 LLM reply per user per 30s |
+| 4 | Global rate limit | 8 calls/min | hard cap via token bucket |
+| 5 | Duplicate detection | 60s window, 0.85 jaccard | same/similar text → cache hit |
+| 6 | Response cache | 200 entries LRU | recent (comment → reply) map |
+| 7 | Short prompts | ON | ~50% fewer input tokens |
+| 8 | Reduced max_tokens | ON | 30→20 for reply, 60→40 for riddle |
+| + | Riddle throttle | 5 min gap | 1 LLM riddle per 5 min, rest from pool |
+
+**Live monitoring** — `GET /api/rtk/stats` returns:
+```json
+{
+  "stats": {"llm_calls": 2, "llm_skipped": 3, "llm_cached": 0, "static_used": 0},
+  "summary": {"llm_calls_baseline": 5, "llm_calls_made": 2, "llm_calls_saved": 3, "savings_pct": 60.0},
+  "calls_in_last_minute": 2, "cache_size": 0
+}
+```
+
+**Tune at runtime** — `POST /api/rtk/config`:
+```json
+// Aggressive (hemat token):
+{"rtk_per_user_cooldown_sec": 60, "rtk_global_rate_per_min": 4}
+// Lenient (LLM lebih sering):
+{"rtk_per_user_cooldown_sec": 10, "rtk_global_rate_per_min": 20}
+// Disable total:
+{"rtk_enabled": false}
+```
+
+**Reset** — `POST /api/rtk/reset` clears all caches and counters.
 
 ---
 
