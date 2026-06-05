@@ -62,7 +62,7 @@ Copy `.env.example` to `.env`:
 | `TIKTOK_USERNAME` | Optional | TikTok username to monitor (no password needed) |
 | `MINIMAX_API_KEY` | Optional | MiniMax API key for LLM auto-reply + dynamic riddles |
 | `MINIMAX_BASE_URL` | Optional | MiniMax API base URL (default: `https://api.minimax.io/anthropic`) |
-| `MINIMAX_MODEL` | Optional | Model name (default: `MiniMax-M2.7`) |
+| `MINIMAX_MODEL` | Optional | Model name (`MiniMax-M3` or `MiniMax-M2.7`, default: `MiniMax-M2.7`) |
 | `MINIMAX_ENABLED` | Optional | Set `true` to enable LLM, or configure via Control Panel |
 
 > **Telegram bot config** — Set token + chat ID directly in **Control Panel → Settings → Telegram Bot** section. No need to edit .env manually.
