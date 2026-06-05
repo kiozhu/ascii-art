@@ -33,22 +33,19 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
 
 from TikTokLive import TikTokLiveClient
-# CORRECT import path: errors live in TikTokLive.client.errors (NOT TikTokLive.types.errors)
-# Note: the real error class names in TikTokLive v6.6.5 are different from
-# what the remote commit used. We import the actually-existing ones:
-from TikTokLive.client.errors import (
-    AlreadyConnectedError,   # == "DuplicateClientError" in remote commit
-    UserNotFoundError,
-    UserOfflineError,
-    AgeRestrictedError,
-    InitialCursorMissingError,
-    WebsocketURLMissingError,
-    WebcastBlocked200Error,
-    SignatureRateLimitError,
-    SignAPIError,
+# TikTokLive v6.6.5 actual paths:
+# Errors: TikTokLive.types.errors
+# Events: TikTokLive.types.events
+from TikTokLive.types.errors import (
+    AlreadyConnected,
+    AlreadyConnecting,
+    LiveNotFound,
+    FailedFetchRoomInfo,
+    SignatureRateLimitReached,
+    FailedConnection,
+    WebsocketConnectionFailed,
 )
-# CORRECT import path: events live in TikTokLive.events (NOT TikTokLive.types.events)
-from TikTokLive.events import (
+from TikTokLive.types.events import (
     CommentEvent, GiftEvent, LikeEvent, FollowEvent,
     ConnectEvent, DisconnectEvent, LiveEndEvent, ShareEvent, JoinEvent,
 )
@@ -104,11 +101,11 @@ class TikTokConnector:
 
         while self._running and self._retry_count < self.max_retries:
             try:
-                self.client = TikTokLiveClient(
-                    unique_id=unique_id,
-                    web_proxy=self.web_proxy,
-                    ws_proxy=self.ws_proxy,
-                )
+                # TikTokLive v6.6.5: only pass proxies if set
+                client_kwargs = {"unique_id": unique_id}
+                if self.web_proxy:
+                    client_kwargs["proxies"] = {"https": self.web_proxy, "http": self.web_proxy}
+                self.client = TikTokLiveClient(**client_kwargs)
 
                 # ── Event handlers (using real proto field names) ──
 
@@ -203,7 +200,7 @@ class TikTokConnector:
                 logger.info("client.run() returned cleanly")
                 break
 
-            except AlreadyConnectedError:
+            except AlreadyConnected:
                 self._retry_count += 1
                 err = "Already connected — another client may be active"
                 logger.error(err)
@@ -212,7 +209,7 @@ class TikTokConnector:
                 self._running = False
                 return
 
-            except (UserNotFoundError, UserOfflineError) as e:
+            except (LiveNotFound, FailedFetchRoomInfo) as e:
                 # User doesn't exist or not streaming — don't retry
                 self._retry_count += 1
                 err = f"{type(e).__name__}: {e}"
@@ -222,17 +219,7 @@ class TikTokConnector:
                 self._running = False
                 return
 
-            except AgeRestrictedError as e:
-                # Live is age-restricted — needs sessionid cookie
-                self._retry_count += 1
-                err = f"AgeRestricted: {e}"
-                logger.error(err)
-                self.on_error(err)
-                self.on_status("ERROR")
-                self._running = False
-                return
-
-            except SignatureRateLimitError as e:
+            except SignatureRateLimitReached as e:
                 # TikTok is rate-limiting our signature fetch — wait longer
                 self._retry_count += 1
                 err = f"SignatureRateLimit: {e}"
@@ -253,7 +240,7 @@ class TikTokConnector:
                     pass
                 time.sleep(wait)
 
-            except (InitialCursorMissingError, WebsocketURLMissingError, WebcastBlocked200Error) as e:
+            except (FailedConnection, WebsocketConnectionFailed) as e:
                 # TikTok blocked the request — long backoff
                 self._retry_count += 1
                 err = f"{type(e).__name__} (likely blocked): {e}"
@@ -267,8 +254,8 @@ class TikTokConnector:
                 self.on_status(f"RETRYING:{self._retry_count}/{self.max_retries}")
                 time.sleep(self.retry_delay * 4)  # much longer on block
 
-            except SignAPIError as e:
-                # Generic sign/server error
+            except Exception as e:
+                # Generic sign/server error or unexpected exception
                 self._retry_count += 1
                 err = f"SignAPI: {e}"
                 logger.error(err)

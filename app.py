@@ -681,7 +681,7 @@ FUNNY_REPLIES = [
 def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, system=None):
     """Call LLM API — supports both Anthropic and OpenAI formats.
 
-    Provider is auto-detected from the selected model's provider field.
+    Provider is auto-detected from the model's provider field.
     MiniMax uses Anthropic Messages API (x-api-key + /v1/messages).
     Xiaomi MiMo uses OpenAI-compatible API (Bearer + /v1/chat/completions).
 
@@ -705,6 +705,11 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
     base_url = provider["base_url"]
     api_format = provider["api_format"]
 
+    # Reasoning models (mimo-v2.5-pro) need much higher max_tokens
+    # because they use most tokens for reasoning_content before producing content
+    is_reasoning_model = "pro" in model.lower() and "mimo" in model.lower()
+    effective_max_tokens = max(max_tokens, 500) if is_reasoning_model else max_tokens
+
     if api_format == "anthropic":
         # Anthropic Messages API: x-api-key + /v1/messages
         url = f"{base_url}/v1/messages"
@@ -716,7 +721,7 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_tokens": effective_max_tokens,
         }
         if temperature is not None:
             payload["temperature"] = temperature
@@ -737,7 +742,7 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
         payload = {
             "model": model,
             "messages": openai_messages,
-            "max_tokens": max_tokens,
+            "max_tokens": effective_max_tokens,
         }
         if temperature is not None:
             payload["temperature"] = temperature
@@ -766,7 +771,17 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
             if not choices:
                 print(f"[LLM:{provider_name}] Empty choices in response: {data}")
                 return None
-            text = choices[0].get("message", {}).get("content", "")
+            message = choices[0].get("message", {})
+            text = message.get("content", "")
+            # Reasoning models (mimo-v2.5-pro) put thinking in reasoning_content
+            # and actual reply in content. If content is empty, try reasoning_content.
+            if not text.strip():
+                reasoning = message.get("reasoning_content", "")
+                if reasoning:
+                    print(f"[LLM:{provider_name}] Content empty, using reasoning_content")
+                    # reasoning_content is the model's thinking, not the final reply
+                    # but it's better than nothing
+                    return reasoning.strip()[:100] or None
             return text.strip() or None
     except Exception as e:
         print(f"[LLM:{provider_name}] Call failed: {e}")
