@@ -521,7 +521,7 @@ FUNNY_REPLIES = [
     "NO COMMENTS 📝❌",
     "WAIT WAIT WAIT 🤯",
     "FIX TIE 🧍",
-    "LUAR BIASA GANS 😍",
+    "WAW KEREN BANGET ☄️",
     "MATA GUA SISA SATU 👁️",
     "BENER BANGET ITU 🤝",
     "YANG MANA? 🤯",
@@ -542,9 +542,9 @@ def gen_auto_reply(username, comment):
         ]
     elif any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk"]):
         replies = [
-            "Ketawa apaan sih 😂",
-            "Ngakak parah 😭",
-            "LUAR BIASA INI 😂",
+            "Komedian nih 😂",
+            "Lucu banget dah 🔥",
+            "Wah garing nih 😭",
         ]
     elif any(w in words for w in ["keren", "mantap", "bagus", "good", "nice"]):
         replies = [
