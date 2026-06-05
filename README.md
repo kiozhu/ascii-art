@@ -125,7 +125,7 @@ Reply to a photo with `/ascii image` to send it to overlay.
 
 ### AI Auto-Reply (🤖 Auto Reply Tab)
 
-**MiniMax LLM integration** — when enabled, uses MiniMax M2.7 for natural dynamic responses:
+**MiniMax LLM integration** — when enabled, uses MiniMax M2.7 or M3 for natural dynamic responses:
 - **Comment reply** — generates natural, context-aware replies (max 5 words)
 - **Riddle generation** — creates new tebak-tebakan dynamically (JSON: `{"q": "...", "a": "..."}`)
 - Falls back to static pool if LLM unavailable

@@ -177,7 +177,7 @@ API key + base URL + model + enabled configurable at runtime via `POST /api/llm/
 |-------|-------------|
 | API Key | MiniMax Bearer token |
 | Base URL | API endpoint (default: `https://api.minimax.io/anthropic`) |
-| Model | Model name — `MiniMax-M2.7`, `MiniMax-Text-01-Turbo`, `MiniMax-Text-01` |
+| Model | Model name — `MiniMax-M3` (latest), `MiniMax-M2.7` |
 | Aktifkan checkbox | Enable LLM for auto-reply + dynamic riddles |
 
 `GET /api/llm/status` returns current config (key masked).
