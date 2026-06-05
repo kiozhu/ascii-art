@@ -466,7 +466,9 @@
     <div class="tiktok-connect-box">
       <label style="font-size:0.7rem;opacity:0.6;display:block;margin-bottom:6px;">ROOM ID / LIVE URL</label>
       <input type="text" id="room-id" placeholder="Masukkan TikTok Live Room ID atau URL...">
-      <div class="btn-row">
+      <label style="font-size:0.7rem;opacity:0.6;display:block;margin-top:10px;margin-bottom:6px;">RESIDENTIAL PROXY (opsional)</label>
+      <input type="text" id="proxy-url" placeholder="http://user:pass@host:port" style="font-size:0.75rem;">
+      <div class="btn-row" style="margin-top:10px;">
         <button class="btn btn-green" onclick="connectTikTok()">🔗 CONNECT</button>
         <button class="btn btn-red" onclick="disconnectTikTok()">✕ DISCONNECT</button>
         <button class="btn btn-outline" onclick="simulateComment()">🧪 TEST</button>
@@ -1156,13 +1158,19 @@ function clearMedia() {
 // ── TikTok ─────────────────────────────────────────────────
 function connectTikTok() {
   const roomId = document.getElementById("room-id").value;
+  const proxyUrl = document.getElementById("proxy-url").value;
   if (!roomId) { alert("Masukkan Room ID dulu"); return; }
+  const body = { room_id: roomId };
+  if (proxyUrl) {
+    body.web_proxy = proxyUrl;
+    body.ws_proxy = proxyUrl;
+  }
   fetch(`${window.location.origin}/api/tiktok/connect`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ room_id: roomId })
+    body: JSON.stringify(body)
   });
-  addLog("EVENT", `Connecting to TikTok room: ${roomId}`);
+  addLog("EVENT", `Connecting to TikTok room: ${roomId}${proxyUrl ? ' via proxy: ' + proxyUrl : ''}`);
 }
 
 function disconnectTikTok() {

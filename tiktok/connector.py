@@ -14,10 +14,12 @@ from TikTokLive import TikTokLiveClient
 from TikTokLive.types.events import CommentEvent, GiftEvent, LikeEvent, FollowEvent
 
 class TikTokConnector:
-    def __init__(self, room_id, on_comment_callback, on_gift_callback=None):
+    def __init__(self, room_id, on_comment_callback, on_gift_callback=None, web_proxy=None, ws_proxy=None):
         self.room_id = room_id
         self.on_comment = on_comment_callback
         self.on_gift = on_gift_callback or (lambda *args: None)
+        self.web_proxy = web_proxy
+        self.ws_proxy = ws_proxy
         self.client: TikTokLiveClient = None
         self._thread = None
         self._running = False
@@ -30,16 +32,13 @@ class TikTokConnector:
 
     def _run(self):
         try:
-            # Extract unique_id from room_id if it's a URL
             unique_id = self._parse_room_id()
-
+            extra_kwargs = {"connect_options": {"enable_extended_gift_info": True}} if hasattr(TikTokLiveClient, 'connect_options') else {}
             self.client = TikTokLiveClient(
                 unique_id=unique_id,
-                **({
-                    "connect_options": {
-                        "enable_extended_gift_info": True,
-                    }
-                } if hasattr(TikTokLiveClient, 'connect_options') else {})
+                web_proxy=self.web_proxy,
+                ws_proxy=self.ws_proxy,
+                **extra_kwargs
             )
 
             # Register event handlers

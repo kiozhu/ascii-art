@@ -959,11 +959,12 @@ def api_display_manual():
 @app.route("/api/tiktok/connect", methods=["POST"])
 def api_tiktok_connect():
     room_id = request.json.get("room_id", "")
-    log("EVENT", "TIKTOK", f"Connect requested to room: {room_id}")
-    # Start TikTok connector in background
+    web_proxy = request.json.get("web_proxy", None) or None
+    ws_proxy = request.json.get("ws_proxy", None) or None
+    log("EVENT", "TIKTOK", f"Connect requested to room: {room_id} | proxy: {web_proxy or 'none'}")
     state["tiktok_status"] = "CONNECTING"
     socketio.emit("status_update", {"tiktok_status": "CONNECTING"})
-    threading.Thread(target=connect_tiktok, args=(room_id,), daemon=True).start()
+    threading.Thread(target=connect_tiktok, args=(room_id, web_proxy, ws_proxy), daemon=True).start()
     return jsonify({"ok": True, "room_id": room_id})
 
 @app.route("/api/tiktok/disconnect", methods=["POST"])
@@ -1099,7 +1100,7 @@ def handle_tiktok_comment(username, comment):
 # ─── TIKTOK CONNECTOR ─────────────────────────────────────
 tiktok_conn = None
 
-def connect_tiktok(room_id):
+def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
     """Start TikTok live listener using TikTokLive library"""
     global tiktok_conn
     from tiktok.connector import TikTokConnector
@@ -1148,7 +1149,7 @@ def connect_tiktok(room_id):
         else:
             socketio.emit("tiktok_gift", {"username": username, "gift": gift_name})
 
-    tiktok_conn = TikTokConnector(room_id, on_comment, on_gift)
+    tiktok_conn = TikTokConnector(room_id, on_comment, on_gift, web_proxy=web_proxy, ws_proxy=ws_proxy)
     tiktok_conn.connect()
 
 # ─── GIFT ART NORMALIZER ────────────────────────────────────
