@@ -4,7 +4,6 @@ flask-cors==4.0.0
 python-socketio==5.10.0
 eventlet==0.35.1
 pillow==10.2.0
-opencv-python-headless==4.9.0.80
 pyfiglet==0.8.post1
 numpy==1.26.3
 websockets==12.0

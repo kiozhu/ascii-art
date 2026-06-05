@@ -188,7 +188,6 @@ ascii-art/
 ├── converters/
 │   ├── text.py               # Text → ASCII (pyfiglet)
 │   ├── image.py              # Image → ASCII (Pillow)
-│   ├── video.py              # Video frame → ASCII (OpenCV)
 │   ├── block_art.py          # Block art converter
 │   └── blocktext.py          # Block text converter
 ├── templates/
