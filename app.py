@@ -495,18 +495,17 @@ auto_reply_state = {
 
 # Funny reply templates (max 5 words each)
 FUNNY_REPLIES = [
-    "Wkwk kreatif juga 😂",
+    "Kreatif juga nih 😂",
     "Hah serius nih? 😏",
-    "Otak di luar ya? 🤯",
-    "Kok bisa gitu sih 🤯",
+        "Kok bisa gitu sih 🤯",
     "Level tinggi banget 🎮",
     "Yakin? Check lagi deh 👀",
-    "Kagak salah kan? 😜",
+    "Kagum abis nih 😍",
     "Keren abis gak sih 🔥",
     "Auto nangis aku 🥲",
     "WAIT APA?? 🤯",
     "KAMU NIH PASTI? 👀",
-    "Wah ada yang salah 🤔",
+    "Wah benar juga 🤔",
     "Lebay banget dah 😂",
     "Gas terus bang 👊",
     "KALAU BENER INI GILA 😂",
@@ -518,17 +517,13 @@ FUNNY_REPLIES = [
     "KODE RED 🤖",
     "NOTED 📝",
     "AUTO LIKE ✅",
-    "SALAH KAPRAH 😎",
     "WAW KEREN BANGET ☄️",
     "SAD BOYS 💔",
     "GAMERS ONLY 🎮",
     "NO COMMENTS 📝❌",
     "WAIT WAIT WAIT 🤯",
     "FIX TIE 🧍",
-    "WAW KEREN BANGET ☄️",
-    "MATA GUA SISA SATU 👁️",
-    "BENER BANGET ITU 🤝",
-    "YANG MANA? 🤯",
+    "BENER BANGET TU 🙌",
     "PANIK GANS 😭😂",
     "FIX INI YANG BENER ✅",
 ]
@@ -540,9 +535,9 @@ def gen_auto_reply(username, comment):
     # Context-aware responses
     if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
         replies = [
-            "Yaelah gitu aja tahu 🤔",
+            "Wah bagus nih pertanyaan 🤔",
             "Nah itu dia pertanyaan 🤔",
-            "Bro pertanyaan itu susah 👀",
+            "Bro kreatif juga 👀",
         ]
     elif any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk"]):
         replies = [
@@ -558,7 +553,7 @@ def gen_auto_reply(username, comment):
         ]
     elif any(w in words for w in ["mau", "dih", "dong", "donk", "pls"]):
         replies = [
-            "Gak semurah itu bang 😂",
+            "Gas bos 🫡",
             "SIAP BOS 🫡",
             "OKE OKE TUNGGU 📝",
         ]
