@@ -489,7 +489,6 @@ auto_reply_state = {
     "running": False,
     "riddle_locked": False,     # True during riddle ASK→ANS→CTA cycle, queues comments
     "reply_locked": False,    # True during CTA display (5s), then set True to delay next riddle cycle
-    "processing_comments": False,  # True while processing comment queue — blocks riddle firing
 }
 
 # Funny reply templates (max 5 words each)
@@ -594,9 +593,6 @@ def _auto_reply_loop():
             continue
 
         if has_comment:
-            # Mark processing state — blocks riddle firing
-            auto_reply_state["processing_comments"] = True
-
             # Process all queued comments (FIFO)
             while auto_reply_state["comment_queue"]:
                 username, comment = auto_reply_state["comment_queue"].pop(0)
@@ -634,9 +630,6 @@ def _auto_reply_loop():
                 auto_reply_state["riddle_timer"].start()
 
                 log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
-
-            # Done processing — release lock, allow riddle cycle to continue
-            auto_reply_state["processing_comments"] = False
         else:
             # No comments — check if we should fire a riddle
             # (riddle timer handles this via _fire_riddle_ask)
@@ -651,9 +644,9 @@ def _fire_riddle_ask():
     if not auto_reply_settings["enabled"]:
         return
 
-    # Skip if currently processing comments (comment reply takes priority)
-    if auto_reply_state["processing_comments"]:
-        log("EVENT", "AUTO_REPLY", "SKIP riddle — processing comment")
+    # Always prioritize comment replies — skip riddle if queue has comments
+    if auto_reply_state["comment_queue"]:
+        log("EVENT", "AUTO_REPLY", "SKIP riddle — comments queued, processing first")
         return
 
     # Lock riddle cycle — queue comments until CTA done
