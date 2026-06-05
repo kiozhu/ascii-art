@@ -605,7 +605,7 @@ def _auto_reply_loop():
                     "original_text": f"@{username}: {reply}",
                 }
                 socketio.emit("auto_reply_display", payload)
-                speak_async(f"{username} bilang {reply}")
+                speak_async(f"{username} {reply}")
 
                 # Update last comment time
                 auto_reply_state["last_comment_time"] = time.time()
