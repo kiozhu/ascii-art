@@ -599,7 +599,7 @@ def _auto_reply_loop():
                 continue
 
         if has_comment:
-            # Mark reply as displaying — block next comment until display done
+            # Lock BEFORE rendering — no other display can start during text_to_ascii
             auto_reply_state["reply_locked"] = True
             auto_reply_state["reply_start_time"] = time.time()
 
@@ -607,7 +607,7 @@ def _auto_reply_loop():
             username, comment = auto_reply_state["comment_queue"].pop(0)
             reply = gen_auto_reply(username, comment)
 
-            # Render reply as ASCII art + emit
+            # Render reply as ASCII art + emit (still under lock)
             ascii_reply = text_to_ascii(f"@{username}: {reply}", font=settings.get("font", "ansi_shadow"))
             payload = {
                 "type": "auto_reply",
@@ -641,6 +641,10 @@ def _auto_reply_loop():
             auto_reply_state["riddle_timer"].start()
 
             log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
+
+            # Keep lock held for entire display_sec — loop will release it after elapsed
+            time.sleep(auto_reply_settings.get("reply_display_sec", 7))
+            auto_reply_state["reply_locked"] = False
         else:
             # No comments — check if we should fire a riddle
             # (riddle timer handles this via _fire_riddle_ask)
