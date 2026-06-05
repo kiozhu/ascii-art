@@ -528,10 +528,10 @@ def _save_runtime_state():
 _load_runtime_state()
 
 LLM_MODELS = [
-    {"id": "MiniMax-M3",      "name": "MiniMax M3 (latest)",          "desc": "Flagship, 1M context, coding & multimodal",   "provider": "minimax"},
-    {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                 "desc": "Fast, ideal for auto-reply",                   "provider": "minimax"},
-    {"id": "mimo-v2.5-pro",   "name": "Xiaomi MiMo V2.5 Pro",         "desc": "Xiaomi flagship, coding & reasoning",          "provider": "xiaomi"},
-    {"id": "mimo-v2.5-flash", "name": "Xiaomi MiMo V2.5 Flash",       "desc": "Fast & cheap, ideal for auto-reply",           "provider": "xiaomi"},
+    {"id": "MiniMax-M3",      "name": "MiniMax M3 (terbaru)",          "desc": "Flagship, konteks 1M, coding & multimodal",   "provider": "minimax"},
+    {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                  "desc": "Cepat, ideal untuk auto-reply",                "provider": "minimax"},
+    {"id": "mimo-v2.5-pro",   "name": "Xiaomi MiMo V2.5 Pro",          "desc": "Flagship Xiaomi, coding & reasoning",          "provider": "xiaomi"},
+    {"id": "mimo-v2.5-flash", "name": "Xiaomi MiMo V2.5 Flash",        "desc": "Cepat & murah, ideal untuk auto-reply",        "provider": "xiaomi"},
 ]
 
 # LLM provider configs — base_url + API format per provider

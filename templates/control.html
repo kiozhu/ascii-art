@@ -433,9 +433,9 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-green" onclick="sendText()">▶ DISPLAY TEXT</button>
+      <button class="btn btn-green" onclick="sendText()">▶ TAMPILKAN TEKS</button>
       <button class="btn btn-outline" onclick="sendBigText()">◻ DEFAULT</button>
-      <button class="btn btn-red" onclick="clearDisplay()">✕ CLEAR</button>
+      <button class="btn btn-red" onclick="clearDisplay()">✕ BERSIHKAN</button>
     </div>
 
     <div style="margin: 20px 0; border-top: 1px solid #00ff4122; padding-top: 20px;">
@@ -461,7 +461,7 @@
 
   <!-- Right: TikTok + Logs -->
   <div class="panel" id="panel-tiktok">
-    <div class="panel-title">▓ TIKTOK LIVE CONNECTION</div>
+    <div class="panel-title">▓ KONEKSI TIKTOK LIVE</div>
 
     <div class="tiktok-connect-box">
       <label style="font-size:0.7rem;opacity:0.6;display:block;margin-bottom:6px;">ROOM ID / LIVE URL</label>
@@ -469,8 +469,8 @@
       <label style="font-size:0.7rem;opacity:0.6;display:block;margin-top:10px;margin-bottom:6px;">RESIDENTIAL PROXY (opsional)</label>
       <input type="text" id="proxy-url" placeholder="http://user:pass@host:port" style="font-size:0.75rem;">
       <div class="btn-row" style="margin-top:10px;">
-        <button class="btn btn-green" onclick="connectTikTok()">🔗 CONNECT</button>
-        <button class="btn btn-red" onclick="disconnectTikTok()">✕ DISCONNECT</button>
+        <button class="btn btn-green" onclick="connectTikTok()">🔗 HUBUNGKAN</button>
+        <button class="btn btn-red" onclick="disconnectTikTok()">✕ PUTUSKAN</button>
         <button class="btn btn-outline" onclick="simulateComment()">🧪 TEST</button>
       </div>
     </div>
@@ -566,11 +566,11 @@
 
       <!-- FONT SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🎨 Font Style</div>
+        <div class="settings-section-title">🎨 Gaya Font</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Text Font</div>
-            <div class="setting-desc">Pyfiglet font untuk text biasa</div>
+            <div class="setting-label">Font Teks</div>
+            <div class="setting-desc">Pyfiglet font untuk teks biasa</div>
           </div>
           <select id="cfg-font" class="setting-select" onchange="applySettings()">
             <option value="ansi_shadow">ansi_shadow</option>
@@ -585,7 +585,7 @@
 
         <div class="setting-row">
           <div>
-            <div class="setting-label">Default Font</div>
+            <div class="setting-label">Font Default</div>
             <div class="setting-desc">Font default untuk overlay</div>
           </div>
           <select id="cfg-bigfont" class="setting-select" onchange="applySettings()">
@@ -602,11 +602,11 @@
 
       <!-- COLOR SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🌈 Colors</div>
+        <div class="settings-section-title">🌈 Warna</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Color Mode</div>
-            <div class="setting-desc">Solid = 1 warna, Gradient = gradasi 3 warna (Hermes style)</div>
+            <div class="setting-label">Mode Warna</div>
+            <div class="setting-desc">Solid = 1 warna, Gradient = gradasi 3 warna (gaya Hermes)</div>
           </div>
           <select id="cfg-colormode" class="setting-select" onchange="applySettings()">
             <option value="solid">● Solid</option>
@@ -617,7 +617,7 @@
         <!-- Solid color picker -->
         <div class="setting-row" id="solid-color-row">
           <div>
-            <div class="setting-label">Text Color</div>
+            <div class="setting-label">Warna Teks</div>
             <div class="setting-desc">Warna teks di overlay</div>
           </div>
           <div class="color-row">
@@ -684,10 +684,10 @@
 
       <!-- ASCII COLOR MODE SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🖼️ ASCII Image Mode</div>
+        <div class="settings-section-title">🖼️ Mode Gambar ASCII</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Color Mode</div>
+            <div class="setting-label">Mode Warna</div>
             <div class="setting-desc">Grayscale = mono hijau, Color = warna asli per karakter</div>
           </div>
           <select id="cfg-asciicolor" class="setting-select" onchange="applySettings()">
@@ -710,10 +710,10 @@
 
       <!-- MATRIX SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🏷️ Live Event Badge</div>
+        <div class="settings-section-title">🏷️ Badge Event Live</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Badge Mode</div>
+            <div class="setting-label">Mode Badge</div>
             <div class="setting-desc">Pinned = selalu visible, Live = hanya saat event</div>
           </div>
           <select id="cfg-badge-mode" onchange="applySettings()" style="background:#111;border:1px solid #00ff4144;color:#00ff41;padding:4px 8px;border-radius:4px;font-size:0.75rem;">
@@ -725,10 +725,10 @@
 
       <!-- GIFT SETTINGS SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🎁 Gift Display</div>
+        <div class="settings-section-title">🎁 Tampilan Gift</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Gift Animation</div>
+            <div class="setting-label">Animasi Gift</div>
             <div class="setting-desc">Aktifkan animasi gift TikTok</div>
           </div>
           <label class="toggle">
@@ -828,10 +828,10 @@
 
       <!-- DISPLAY SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">⏱️ Display Duration</div>
+        <div class="settings-section-title">⏱️ Durasi Tampilan</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Auto-Clear Timer</div>
+            <div class="setting-label">Timer Auto-Bersih</div>
             <div class="setting-desc">Detik sebelum overlay bersih (0=off)</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
@@ -899,10 +899,10 @@
 
       <!-- RECORD SECTION -->
       <div class="settings-section">
-        <div class="settings-section-title">🎬 Screen Record</div>
+        <div class="settings-section-title">🎬 Rekam Layar</div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Duration</div>
+            <div class="setting-label">Durasi</div>
             <div class="setting-desc">Durasi rekaman (detik)</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
