@@ -679,94 +679,137 @@ socket.on("auto_rec", (data) => {
   }
 });
 
+// ─── DISPLAY PRIORITY SYSTEM ──────────────────────────────
+// Priority: auto_reply(4) > manual(3) > riddle(2) > cta(1)
+// Higher priority display preempts lower one immediately.
+// Same or lower priority is silently ignored (only clear can pass through).
+window._displayPriority = 0;
+window._activeSource = null;
+
+function showDisplay(source, priority, data, renderFn) {
+  // Allow clear to always pass through
+  if (source === "clear") {
+    window._displayPriority = 0;
+    window._activeSource = null;
+    renderFn();
+    return;
+  }
+  // Ignore if a higher-priority display is currently showing
+  if (window._displayPriority > priority) {
+    return;
+  }
+  // Preempt any lower-priority display
+  window._displayPriority = priority;
+  window._activeSource = source;
+  renderFn();
+}
+
 socket.on("riddle_display", (data) => {
   // riddle_ask: cyan colored display
   // riddle_answer: gold/yellow colored display
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
-  if (giftBox) giftBox.style.display = "none";
-  if (box) {
-    box.style.display = "flex";
-    box.classList.add("active");
-    const isAnswer = data.type === "riddle_answer";
-    const fallback = data.fallback;
-    // Color: normal=cyan/gold, fallback=red-ish to signal "static pool"
-    const color = fallback ? (isAnswer ? "#FF6B6B" : "#FF4444") : (isAnswer ? "#FFD700" : "#00E5FF");
-    const glow  = fallback ? "#FF0000" : (isAnswer ? "#FF4500" : "#00ff41");
-    const label = isAnswer ? "💡 JAWABAN" : "❓ TEBAK TEBAKAN";
-    const aiTag = fallback ? "" : "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;\">[AI]</span>";
-    const staticTag = fallback ? "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;color:#FF6B6B;\">[static]</span>" : "";
-    const html = escapeHtml(data.ascii_content || data.content || "");
-    const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
-    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
+  const isAnswer = data.type === "riddle_answer";
+  const fallback = data.fallback;
+  const color = fallback ? (isAnswer ? "#FF6B6B" : "#FF4444") : (isAnswer ? "#FFD700" : "#00E5FF");
+  const glow  = fallback ? "#FF0000" : (isAnswer ? "#FF4500" : "#00ff41");
+  const label = isAnswer ? "JAWABAN" : "TEBAK TEBAKAN";
+  const aiTag = fallback ? "" : "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;\">[AI]</span>";
+  const staticTag = fallback ? "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;color:#FF6B6B;\">[static]</span>" : "";
+  const html = escapeHtml(data.ascii_content || data.content || "");
+  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
       <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}${aiTag}${staticTag}</div>
       ${styled}
     </div>`;
-    // Auto-clear after 8s so overlay returns to dots
-    clearTimeout(window._riddleHideTimer);
-    window._riddleHideTimer = setTimeout(() => {
-      if (box) {
-        box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
-        box.classList.remove("active");
-      }
-    }, 8000);
-  }
+  showDisplay("riddle", 2, data, () => {
+    if (giftBox) giftBox.style.display = "none";
+    if (box) {
+      box.style.display = "flex";
+      box.classList.add("active");
+      box.innerHTML = content;
+      clearTimeout(window._riddleHideTimer);
+      window._riddleHideTimer = setTimeout(() => {
+        if (window._activeSource === "riddle") {
+          window._displayPriority = 0;
+          window._activeSource = null;
+        }
+        if (box) {
+          box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+          box.classList.remove("active");
+        }
+      }, 8000);
+    }
+  });
 });
 
 socket.on("cta_display", (data) => {
-  // CTA: pink/magenta glowing display
+  // CTA: pink/magenta glowing display (lowest priority — preempted by anything)
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
-  if (giftBox) giftBox.style.display = "none";
-  if (box) {
-    box.style.display = "flex";
-    box.classList.add("active");
-    const color = "#FF1493";
-    const glow = "#FF1493";
-    const label = "💬 HEY SOB";
-    const html = escapeHtml(data.ascii_content || data.content || "");
-    const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
-    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
+  const color = "#FF1493";
+  const glow = "#FF1493";
+  const label = "HEY SOB";
+  const html = escapeHtml(data.ascii_content || data.content || "");
+  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
       <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}</div>
       ${styled}
     </div>`;
-    clearTimeout(window._riddleHideTimer);
-    window._riddleHideTimer = setTimeout(() => {
-      if (box) {
-        box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
-        box.classList.remove("active");
-      }
-    }, 5000);
-  }
+  showDisplay("cta", 1, data, () => {
+    if (giftBox) giftBox.style.display = "none";
+    if (box) {
+      box.style.display = "flex";
+      box.classList.add("active");
+      box.innerHTML = content;
+      clearTimeout(window._riddleHideTimer);
+      window._riddleHideTimer = setTimeout(() => {
+        if (window._activeSource === "cta") {
+          window._displayPriority = 0;
+          window._activeSource = null;
+        }
+        if (box) {
+          box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+          box.classList.remove("active");
+        }
+      }, 5000);
+    }
+  });
 });
 
 socket.on("auto_reply_display", (data) => {
-  // Auto-reply: bright green with user tag
+  // Auto-reply: bright green — HIGHEST priority, preempts everything
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
-  if (giftBox) giftBox.style.display = "none";
-  if (box) {
-    box.style.display = "flex";
-    box.classList.add("active");
-    const color = "#39FF14"; // neon green
-    const glow = "#00ff41";
-    const html = escapeHtml(data.ascii_content || data.content || "");
-    const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
-    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
-      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">🤖 AUTO REPLY</div>
+  const color = "#39FF14"; // neon green
+  const glow = "#00ff41";
+  const html = escapeHtml(data.ascii_content || data.content || "");
+  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">AUTO REPLY</div>
       ${styled}
     </div>`;
-    // Auto-clear after display_sec so viewers can read
-    const displayMs = (data.display_sec || 7) * 1000;
-    if (window._replyHideTimer) clearTimeout(window._replyHideTimer);
-    window._replyHideTimer = setTimeout(() => {
-      const b = document.getElementById("manual-box");
-      if (b) {
-        b.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
-        b.classList.remove("active");
-      }
-    }, displayMs);
-  }
+  const displayMs = (data.display_sec || 7) * 1000;
+  showDisplay("auto_reply", 4, data, () => {
+    if (giftBox) giftBox.style.display = "none";
+    if (box) {
+      box.style.display = "flex";
+      box.classList.add("active");
+      box.innerHTML = content;
+      if (window._replyHideTimer) clearTimeout(window._replyHideTimer);
+      window._replyHideTimer = setTimeout(() => {
+        if (window._activeSource === "auto_reply") {
+          window._displayPriority = 0;
+          window._activeSource = null;
+        }
+        const b = document.getElementById("manual-box");
+        if (b) {
+          b.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+          b.classList.remove("active");
+        }
+      }, displayMs);
+    }
+  });
 });
 
 socket.on("status_update", (data) => {
@@ -778,9 +821,16 @@ socket.on("status_update", (data) => {
 socket.on("display_update", (data) => {
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
+  const SOURCE = "manual";
+
+  // Clear always passes through
   if (!data.content || data.type === "none") {
-    box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
-    box.classList.remove("active");
+    showDisplay("clear", 0, data, () => {
+      if (box) {
+        box.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+        box.classList.remove("active");
+      }
+    });
     return;
   }
 
@@ -789,56 +839,78 @@ socket.on("display_update", (data) => {
     giftBox.style.display = "none";
   }
 
+  // For async content (image/gif/video), capture priority at emission time
+  // so we can verify it's still valid when async render completes
+  const capturedPriority = window._displayPriority;
+
   // Render based on content type
   if (data.type === "image" || data.type === "gif") {
-    box.innerHTML = '<div class="ascii-content" id="conv-ascii"><em>converting image... (0%)</em></div>';
-    box.classList.add("active");
-    imageToASCII(data.content, ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
-      const el = document.getElementById("conv-ascii");
-      if (el) { el.innerHTML = `<em>converting image... (${progress}%)</em>`; }
-    }).then(ascii => {
-      const el = document.getElementById("conv-ascii");
-      if (el) { el.innerHTML = ascii; }
+    const contentEl = '<div class="ascii-content" id="conv-ascii"><em>converting image... (0%)</em></div>';
+    showDisplay(SOURCE, 3, data, () => {
+      if (box) {
+        box.innerHTML = contentEl;
+        box.classList.add("active");
+        imageToASCII(data.content, ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
+          const el = document.getElementById("conv-ascii");
+          if (el) { el.innerHTML = `<em>converting image... (${progress}%)</em>`; }
+        }).then(ascii => {
+          // Only apply if manual is still the active source (no higher priority took over)
+          if (window._activeSource === SOURCE && box) {
+            const el = document.getElementById("conv-ascii");
+            if (el) { el.innerHTML = ascii; }
+          }
+        });
+      }
     });
   } else if (data.type === "video") {
-    box.innerHTML = '<div class="ascii-content" id="conv-ascii"><em>converting video... (0%)</em></div>';
-    box.classList.add("active");
-    const vid = document.createElement("video");
-    vid.crossOrigin = "anonymous";
-    vid.src = data.content;
-    vid.muted = true;
-    vid.onloadeddata = () => { vid.currentTime = 0.1; };
-    vid.onseeked = () => {
-      const cvs = document.createElement("canvas");
-      cvs.width = vid.videoWidth || 160;
-      cvs.height = vid.videoHeight || 90;
-      const ctx = cvs.getContext("2d");
-      ctx.drawImage(vid, 0, 0, cvs.width, cvs.height);
-      imageToASCII(cvs.toDataURL("image/png"), ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
-        const el = document.getElementById("conv-ascii");
-        if (el) { el.innerHTML = `<em>converting video frame... (${progress}%)</em>`; }
-      }).then(ascii => {
-        const el = document.getElementById("conv-ascii");
-        if (el) { el.innerHTML = ascii; }
-      });
-    };
+    const contentEl = '<div class="ascii-content" id="conv-ascii"><em>converting video... (0%)</em></div>';
+    showDisplay(SOURCE, 3, data, () => {
+      if (box) {
+        box.innerHTML = contentEl;
+        box.classList.add("active");
+        const vid = document.createElement("video");
+        vid.crossOrigin = "anonymous";
+        vid.src = data.content;
+        vid.muted = true;
+        vid.onloadeddata = () => { vid.currentTime = 0.1; };
+        vid.onseeked = () => {
+          const cvs = document.createElement("canvas");
+          cvs.width = vid.videoWidth || 160;
+          cvs.height = vid.videoHeight || 90;
+          const ctx = cvs.getContext("2d");
+          ctx.drawImage(vid, 0, 0, cvs.width, cvs.height);
+          imageToASCII(cvs.toDataURL("image/png"), ASCII_COLS, ASCII_COLOR_MODE, (progress) => {
+            const el = document.getElementById("conv-ascii");
+            if (el) { el.innerHTML = `<em>converting video frame... (${progress}%)</em>`; }
+          }).then(ascii => {
+            if (window._activeSource === SOURCE && box) {
+              const el = document.getElementById("conv-ascii");
+              if (el) { el.innerHTML = ascii; }
+            }
+          });
+        };
+      }
+    });
   } else {
-    // text, bigtext, block, half → render as ASCII/text
+    // text, bigtext, block, half → synchronous render under priority guard
     const fs = data.fontsize ? data.fontsize : 14;
     let html = escapeHtml(data.content);
 
     if (COLOR_MODE === 'gradient' && data.type !== 'block' && data.type !== 'half') {
-      // Count lines for gradient positioning
       const lines = data.content.split('\n');
       html = applyGradientToText(data.content, lines.length);
     } else if (COLOR_MODE === 'gradient') {
-      // block/half still get a uniform color (GRAD_MID)
       const mid = rgbStr(GRAD_MID);
       html = `<span style="color:${mid};text-shadow:0 0 8px ${mid}">${escapeHtml(data.content)}</span>`;
     }
 
-    box.innerHTML = `<div class="ascii-content" style="font-size:${fs}px">${html}</div>`;
-    box.classList.add("active");
+    const contentEl = `<div class="ascii-content" style="font-size:${fs}px">${html}</div>`;
+    showDisplay(SOURCE, 3, data, () => {
+      if (box) {
+        box.innerHTML = contentEl;
+        box.classList.add("active");
+      }
+    });
   }
 });
 
