@@ -559,7 +559,7 @@ def call_minimax(prompt, max_words=5):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 50,
+        "max_tokens": 30,
         "temperature": 0.9,
     }
     try:
@@ -582,8 +582,10 @@ def gen_auto_reply(username, comment):
     # Try LLM first if enabled
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
         prompt = (
-            f'Buatin reply lucu max 5 kata untuk komentar TikTok: "{comment}". '
-            f'Jangan pakai emoji, max 5 kata.'
+            f"Buatin reply lucu, RAMAH, dan SOPAN max 5 kata untuk komentar TikTok: \"{comment}\". "
+            f"Jangan pakai emoji, gak boleh vulgar atau gak sopan. "
+            f"Contoh: 'Wah bagus nih pertanyaan' atau 'Komedian nih'. "
+            f"Username: @{username}"
         )
         reply = call_minimax(prompt, max_words=5)
         if reply:
@@ -630,9 +632,11 @@ def gen_riddle():
     """Generate a riddle — uses MiniMax LLM if configured, else picks from static pool."""
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
         prompt = (
-            "Buatin tebak-tebakan lucu dalam Bahasa Indonesia. "
-            "Jawaban max 3 kata. Format JSON saja: {\"q\": \"pertanyaan\", \"a\": \"jawaban\"}. "
-            "Tidak pakai emoji."
+            "Buatin tebak-tebakan lucu dalam Bahasa Indonesia yang FRIENDLY dan RAMAH. "
+            "Semua jawaban harus SOPAN, gak boleh vulgar atau gak sopan. "
+            "Pertanyaan max 10 kata, jawaban max 7 kata. "
+            "Format JSON saja: {\"q\": \"pertanyaan\", \"a\": \"jawaban\"}. "
+            "Tidak pakai emoji. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
         )
         try:
             api_key = auto_reply_settings.get("llm_api_key", "").strip()
@@ -643,7 +647,7 @@ def gen_riddle():
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 80,
+                "max_tokens": 60,
                 "temperature": 0.9,
             }
             resp = requests.post(url, headers=headers, json=payload, timeout=10)
@@ -657,7 +661,10 @@ def gen_riddle():
                 obj = json.loads(m.group())
                 q = obj.get("q", "").strip()
                 a = obj.get("a", "").strip()
-                if q and a:
+                # Enforce word limits
+                q_words = q.split()
+                a_words = a.split()
+                if len(q_words) <= 15 and 1 <= len(a_words) <= 7 and len(a_words) >= 1:
                     return {"q": q, "a": a, "ask_time": time.time()}
         except Exception as e:
             print(f"[MiniMax] Riddle gen failed: {e}")
