@@ -670,7 +670,7 @@ def gen_riddle():
             print(f"[MiniMax] Riddle gen failed: {e}")
     # Fallback to static pool
     r = random.choice(RIDDLES)
-    return {"q": r["q"], "a": r["a"], "ask_time": time.time()}
+    return {"q": r["q"], "a": r["a"], "ask_time": time.time(), "fallback": True}
 
 
 def _auto_reply_loop():
@@ -775,6 +775,7 @@ def _fire_riddle_ask():
         "question": r["q"],
         "ascii_content": ascii_q,
         "timestamp": datetime.now().isoformat(),
+        "fallback": r.get("fallback", False),
     }
     state["active_display"] = {
         "content": ascii_q,
@@ -782,8 +783,9 @@ def _fire_riddle_ask():
         "original_text": r["q"],
     }
     socketio.emit("riddle_display", payload)
+    fallback_tag = " [static]" if r.get("fallback") else ""
     speak_async(r["q"])
-    log("EVENT", "AUTO_REPLY", f"RIDDLE ASK: {r['q']}")
+    log("EVENT", "AUTO_REPLY", f"RIDDLE ASK:{fallback_tag} {r['q']}")
 
     # Schedule answer in riddle_interval_sec
     interval = auto_reply_settings["riddle_interval_sec"]
@@ -810,15 +812,17 @@ def _fire_riddle_answer():
         "answer": r["a"],
         "ascii_content": ascii_a,
         "timestamp": datetime.now().isoformat(),
+        "fallback": r.get("fallback", False),
     }
     state["active_display"] = {
         "content": ascii_a,
         "type": "text",
-        "original_text": f"Jawaban: {r['a']}",
+        "original_text": f"Jawaban: {r['a']}" + (" (static)" if r.get("fallback") else ""),
     }
     socketio.emit("riddle_display", payload)
-    speak_async(f"Jawabannya adalah {r['a']}")
-    log("EVENT", "AUTO_REPLY", f"RIDDLE ANS: {r['a']}")
+    fallback_tag = " [static]" if r.get("fallback") else ""
+    speak_async(f"Jawabannya adalah {r['a']}{fallback_tag}")
+    log("EVENT", "AUTO_REPLY", f"RIDDLE ANS:{fallback_tag} {r['a']}")
 
     auto_reply_state["current_riddle"] = None
 
