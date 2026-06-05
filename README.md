@@ -80,7 +80,7 @@ If running on a VPS, TikTok may block the connection due to data-center IP. Add 
 
 | Tab | Features |
 |-----|----------|
-| **DISPLAY** | Manual text, image upload, video upload, clear display |
+| **DISPLAY** | Manual text, image upload, clear display |
 | **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode |
 | **TIKTOK LIVE** | Connect by username, residential proxy support, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
@@ -121,9 +121,8 @@ ascii-art/
 │   └── connector.py        # TikTokLive WebSocket connector (web_proxy/ws_proxy)
 ├── converters/
 │   ├── text.py             # Text → ASCII
-│   ├── image.py            # Image → ASCII
-│   ├── video.py            # Video frame → ASCII
-│   └── block_art.py        # Block art
+│   ├── image.py            # Image → ASCII (Pillow)
+│   └── blocktext.py        # Block text
 ├── templates/
 │   ├── overlay.html         # OBS overlay (canvas + Socket.IO client)
 │   ├── control.html        # Streamer control panel (5 tabs)

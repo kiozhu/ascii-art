@@ -2,7 +2,7 @@
 
 ## Concept & Vision
 
-Sistem overlay interaktif untuk live streaming yang mengubah teks, gambar, GIF, dan video menjadi tampilan ASCII art real-time. Mengadopsi gaya terminal futuristik / Matrix — hijau neon di atas hitam, kesan hacker futuristik. Ditampilkan via OBS Browser Source, membuat live coding / AI / teknologi terlihat jauh lebih menarik.
+Sistem overlay interaktif untuk live streaming yang mengubah teks dan gambar menjadi tampilan ASCII art real-time. Mengadopsi gaya terminal futuristik / Matrix — hijau neon di atas hitam, kesan hacker futuristik. Ditampilkan via OBS Browser Source, membuat live coding / AI / teknologi terlihat jauh lebih menarik.
 
 ---
 
@@ -134,7 +134,7 @@ ASK (teka-teki) → 5s → ANSWER (jawaban) → 5s → CTA (ajak comentar) → 5
 
 | Tab | Features |
 |-----|----------|
-| **DISPLAY** | Manual text, image upload, video upload, clear display |
+| **DISPLAY** | Manual text, image upload, clear display |
 | **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode |
 | **TIKTOK LIVE** | Connect by username, residential proxy, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
@@ -158,7 +158,7 @@ Format:
 ## Tech Stack
 
 - **Backend:** Python Flask + Flask-SocketIO + threading
-- **ASCII Rendering:** Pillow (image), opencv (video), pyfiglet (text)
+- **ASCII Rendering:** Pillow (image), pyfiglet (text)
 - **TikTok:** TikTokLive v6.6.5 (WebSocket)
 - **TTS:** gTTS (server-side, suara cewek)
 - **Frontend:** Vanilla JS + CSS, no framework
