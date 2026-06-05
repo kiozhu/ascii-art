@@ -417,9 +417,8 @@ auto_reply_settings = {
 }
 
 LLM_MODELS = [
-    {"id": "MiniMax-M2.7",   "name": "MiniMax M2.7 (Turbo, terbaru)", "desc": "Tercepat & tercerdas"},
-    {"id": "MiniMax-Text-01-Turbo", "name": "MiniMax Text-01 Turbo", "desc": "Cepat, good balance"},
-    {"id": "MiniMax-Text-01", "name": "MiniMax Text-01", "desc": "Base model, lebih detail"},
+    {"id": "MiniMax-M3",      "name": "MiniMax M3 (latest)",          "desc": "Flagship, 1M context, coding & multimodal"},
+    {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                 "desc": "Fast, ideal for auto-reply"},
 ]
 
 # ─── RIDDLE POOL ─────────────────────────────────────────────
