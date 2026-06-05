@@ -11,3 +11,4 @@ __pycache__/
 venv/
 data/runtime_state.json
 data/tts_cache/
+gh_update.py
