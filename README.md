@@ -141,7 +141,28 @@ Reply to a photo with `/ascii image` to send it to overlay.
 - 40 static riddles (absurd, logika, budaya, tech) — replaced by LLM when enabled
 - Skipped automatically when comment queue has items
 
+**No emoji policy** — all output is clean text:
+- LLM replies stripped of emoji via `_remove_emoji()` regex
+- Static pool (FUNNY_REPLIES) pre-cleaned — no emoji
+- Overlay labels stripped of emoji ("AUTO REPLY" not "🤖 AUTO REPLY")
+- TTS reads clean text only
+
 **Comment reply** — top priority over riddles:
+- Komentar diproses satu-per-satu (tidak batching)
+- 7 detik tampil, tidak overlap dengan riddle/CTA
+
+**Display collision prevention** — strict priority system:
+| Source | Priority | Notes |
+|--------|----------|-------|
+| Auto Reply | 4 (highest) | Komentar masuk — preempt semua |
+| Manual Display | 3 | User ketik manual — preempt riddle/CTA |
+| Riddle ASK/ANSWER | 2 | Preempt CTA saja |
+| CTA | 1 (lowest) | Di-preempt oleh semua di atas |
+
+**Race condition prevention** — per-source sequence numbers:
+- Setiap emit Socket.IO disertai `seq` counter per source
+- Browser track `window._lastSeq[source]` — event dengan seq lebih rendah di-drop
+- Bergaransi urutan satu-per-satu bahkan dengan HTTP long-polling transport
 - Strict serial: **1 reply every 7 seconds**
 - No batching, no overlap ever
 - Reply lock held during full display duration

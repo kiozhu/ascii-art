@@ -78,9 +78,15 @@ When LLM is enabled (via Control Panel → Settings → MiniMax LLM):
 - **Config:** API key + base URL + model name + enabled flag — all runtime-configurable via `POST /api/llm/config`
 
 When LLM is disabled — uses static fallback:
-- 40 riddles pool
-- 36 reply templates
+- 19 riddles pool (not 40 — updated)
+- 32 reply templates (not 36 — updated)
 - Same serial lock / 7s display / priority logic
+
+**No emoji policy** — all output is clean text:
+- LLM replies stripped of emoji via `_remove_emoji()` regex on all output paths
+- Static FUNNY_REPLIES pool pre-cleaned — no emoji
+- Overlay labels stripped of emoji ("AUTO REPLY" not "🤖 AUTO REPLY")
+- TTS reads clean text only, no emoji
 
 **Fallback indicator** — overlay visually distinguishes LLM vs static:
 - `[AI]` tag = LLM-generated riddles (cyan question / gold answer)
@@ -102,6 +108,24 @@ ASK (teka-teki) → 5s → ANSWER (jawaban) → 5s → CTA (ajak comentar) → 5
 ### Comment Reply (priority tinggi)
 
 - Strict serial: **1 reply every 7 seconds**
+- No batching, no overlap ever
+- Reply lock held during full display duration
+- Riddle cycle PAUSED while reply is showing
+
+**Display collision prevention** — strict priority system:
+| Source | Priority | Notes |
+|--------|----------|-------|
+| Auto Reply | 4 (highest) | Komentar masuk — preempt semua |
+| Manual Display | 3 | User ketik manual — preempt riddle/CTA |
+| Riddle ASK/ANSWER | 2 | Preempt CTA saja |
+| CTA | 1 (lowest) | Di-preempt oleh semua di atas |
+
+**Race condition prevention** — per-source sequence numbers:
+- Python: `state["seq"] = {"manual":0, "auto_reply":0, "riddle":0, "cta":0}`
+- Seq incremented before every `socketio.emit()`
+- Browser: `window._lastSeq[source]` tracks last processed seq
+- Client drops events where `seq <= _lastSeq[source]`
+- Guarantees strict one-at-a-time ordering with HTTP long-polling transport
 - No batching, no overlap
 - `reply_locked = True` selama 7s (ditahan pakai `time.sleep`)
 - Riddle timer di-reset ke `reply_display_sec` (7s) setelah reply selesai
