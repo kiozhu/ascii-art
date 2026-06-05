@@ -440,9 +440,25 @@ auto_reply_settings = {
 }
 
 LLM_MODELS = [
-    {"id": "MiniMax-M3",      "name": "MiniMax M3 (latest)",          "desc": "Flagship, 1M context, coding & multimodal"},
-    {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                 "desc": "Fast, ideal for auto-reply"},
+    {"id": "MiniMax-M3",      "name": "MiniMax M3 (latest)",          "desc": "Flagship, 1M context, coding & multimodal",   "provider": "minimax"},
+    {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                 "desc": "Fast, ideal for auto-reply",                   "provider": "minimax"},
+    {"id": "mimo-v2.5-pro",   "name": "Xiaomi MiMo V2.5 Pro",         "desc": "Xiaomi flagship, coding & reasoning",          "provider": "xiaomi"},
+    {"id": "mimo-v2.5-flash", "name": "Xiaomi MiMo V2.5 Flash",       "desc": "Fast & cheap, ideal for auto-reply",           "provider": "xiaomi"},
 ]
+
+# LLM provider configs — base_url + API format per provider
+LLM_PROVIDERS = {
+    "minimax": {
+        "name": "MiniMax",
+        "base_url": "https://api.minimax.io/anthropic",
+        "api_format": "anthropic",  # x-api-key + POST /v1/messages
+    },
+    "xiaomi": {
+        "name": "Xiaomi MiMo",
+        "base_url": "https://api.xiaomimimo.com/v1",
+        "api_format": "openai",     # Bearer token + POST /v1/chat/completions
+    },
+}
 
 # ─── RIDDLE POOL ─────────────────────────────────────────────
 # Each riddle is a dict with {question, answer} — max ~5 words each
@@ -575,59 +591,97 @@ FUNNY_REPLIES = [
 
 
 def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, system=None):
-    """Call MiniMax LLM API (Anthropic Messages API style).
+    """Call LLM API — supports both Anthropic and OpenAI formats.
 
-    The MiniMax API at https://api.minimax.io/anthropic is a clone of
-    Anthropic's Messages API, not OpenAI's chat completions. So we use:
-      - URL:    {base_url}/v1/messages
-      - Auth:   x-api-key header (NOT Authorization: Bearer)
-      - Body:   {"model": ..., "messages": [...], "max_tokens": ..., ["system": "..."]}
-      - Reply:  data["content"][0]["text"]   (NOT data["choices"][0]["message"]["content"])
+    Provider is auto-detected from the selected model's provider field.
+    MiniMax uses Anthropic Messages API (x-api-key + /v1/messages).
+    Xiaomi MiMo uses OpenAI-compatible API (Bearer + /v1/chat/completions).
 
-    `system` is an optional system prompt (Anthropic-style, separate from messages).
+    `system` is an optional system prompt. For Anthropic format it's passed
+    as a top-level field; for OpenAI format it's prepended as a system message.
     Returns the text reply (str) or None on failure.
     """
     api_key = auto_reply_settings.get("llm_api_key", "").strip()
-    base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
     model = model_override or auto_reply_settings.get("llm_model", "MiniMax-M2.7")
 
     if not api_key:
         return None
 
-    url = f"{base_url}/v1/messages"
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-    }
-    if temperature is not None:
-        payload["temperature"] = temperature
-    if system:
-        payload["system"] = system
+    # Detect provider from model list
+    provider_name = "minimax"  # default
+    for m in LLM_MODELS:
+        if m["id"] == model:
+            provider_name = m.get("provider", "minimax")
+            break
+    provider = LLM_PROVIDERS.get(provider_name, LLM_PROVIDERS["minimax"])
+    base_url = provider["base_url"]
+    api_format = provider["api_format"]
+
+    if api_format == "anthropic":
+        # Anthropic Messages API: x-api-key + /v1/messages
+        url = f"{base_url}/v1/messages"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if system:
+            payload["system"] = system
+    else:
+        # OpenAI-compatible: Bearer token + /v1/chat/completions
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        # Prepend system message if provided
+        openai_messages = []
+        if system:
+            openai_messages.append({"role": "system", "content": system})
+        openai_messages.extend(messages)
+        payload = {
+            "model": model,
+            "messages": openai_messages,
+            "max_tokens": max_tokens,
+        }
+        if temperature is not None:
+            payload["temperature"] = temperature
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
         # Don't raise — let the caller log the body
         if resp.status_code != 200:
-            print(f"[MiniMax] LLM HTTP {resp.status_code}: {resp.text[:200]}")
+            print(f"[LLM:{provider_name}] HTTP {resp.status_code}: {resp.text[:200]}")
             return None
         data = resp.json()
-        # Anthropic Messages API: {"content": [{"type": "text", "text": "..."}, ...]}
-        content = data.get("content") or []
-        if not content:
-            print(f"[MiniMax] Empty content in response: {data}")
-            return None
-        text = ""
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                text += block.get("text", "")
-        return text.strip() or None
+
+        if api_format == "anthropic":
+            # Anthropic Messages API: {"content": [{"type": "text", "text": "..."}, ...]}
+            content = data.get("content") or []
+            if not content:
+                print(f"[LLM:{provider_name}] Empty content in response: {data}")
+                return None
+            text = ""
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text += block.get("text", "")
+            return text.strip() or None
+        else:
+            # OpenAI-compatible: {"choices": [{"message": {"content": "..."}, ...}]}
+            choices = data.get("choices") or []
+            if not choices:
+                print(f"[LLM:{provider_name}] Empty choices in response: {data}")
+                return None
+            text = choices[0].get("message", {}).get("content", "")
+            return text.strip() or None
     except Exception as e:
-        print(f"[MiniMax] LLM call failed: {e}")
+        print(f"[LLM:{provider_name}] Call failed: {e}")
         return None
 
 
@@ -2021,15 +2075,43 @@ def api_telegram_status():
         "token_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip()),
     })
 
-# ─── API: MiniMax LLM CONFIG ─────────────────────────────────
+# ─── API: LLM CONFIG ─────────────────────────────────────────
+@app.route("/api/llm/models")
+def api_llm_models():
+    """Return available LLM models with provider info for the control panel dropdown."""
+    models = []
+    for m in LLM_MODELS:
+        provider = LLM_PROVIDERS.get(m.get("provider", "minimax"), {})
+        models.append({
+            "id": m["id"],
+            "name": m["name"],
+            "desc": m["desc"],
+            "provider": m.get("provider", "minimax"),
+            "provider_name": provider.get("name", "Unknown"),
+        })
+    return jsonify({"ok": True, "models": models, "providers": LLM_PROVIDERS})
+
+
 @app.route("/api/llm/config", methods=["POST"])
 def api_llm_config():
-    """Update MiniMax LLM config at runtime — key + base_url + model + enabled"""
+    """Update LLM config at runtime — key + model + enabled.
+
+    base_url is auto-detected from the model's provider config.
+    Users only need to set api_key + model + enabled.
+    """
     data = request.get_json() or {}
     api_key = data.get("api_key", "").strip()
-    base_url = data.get("base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
     model = data.get("model", "MiniMax-M2.7").strip()
     enabled = bool(data.get("enabled", False))
+
+    # Auto-detect base_url from model's provider
+    provider_name = "minimax"
+    for m in LLM_MODELS:
+        if m["id"] == model:
+            provider_name = m.get("provider", "minimax")
+            break
+    provider = LLM_PROVIDERS.get(provider_name, LLM_PROVIDERS["minimax"])
+    base_url = provider["base_url"]
 
     # Update runtime settings
     auto_reply_settings["llm_api_key"] = api_key
@@ -2168,12 +2250,23 @@ def api_rtk_config():
 
 @app.route("/api/llm/status")
 def api_llm_status():
-    """Return MiniMax LLM status"""
+    """Return LLM status including provider info"""
+    model = auto_reply_settings.get("llm_model", "MiniMax-M2.7")
+    # Auto-detect provider from model
+    provider_name = "minimax"
+    for m in LLM_MODELS:
+        if m["id"] == model:
+            provider_name = m.get("provider", "minimax")
+            break
+    provider = LLM_PROVIDERS.get(provider_name, LLM_PROVIDERS["minimax"])
     return jsonify({
         "llm_enabled": auto_reply_settings.get("llm_enabled", False),
         "llm_api_key_set": bool(auto_reply_settings.get("llm_api_key", "").strip()),
-        "llm_model": auto_reply_settings.get("llm_model", "MiniMax-M2.7"),
-        "llm_base_url": auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic"),
+        "llm_model": model,
+        "llm_base_url": provider["base_url"],
+        "llm_provider": provider_name,
+        "llm_provider_name": provider["name"],
+        "llm_api_format": provider["api_format"],
     })
 
 # ─── SERVER STATUS ─────────────────────────────────────────
