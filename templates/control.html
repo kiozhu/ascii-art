@@ -965,43 +965,45 @@
           <div class="info-box">`/ascii clear` — Bersihkan</div>
         </div>
       </div>
+    <!-- MiniMax LLM Config — inside settings panel -->
+    <div style="margin-top:20px;">
+      <div class="settings-section-title">🤖 MiniMax LLM</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">API Key</label>
+          <input type="password" id="llm-api-key" placeholder="eyJ..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Base URL</label>
+          <input type="text" id="llm-base-url" value="https://api.minimax.io/anthropic" placeholder="https://api.minimax.io/anthropic" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+        <div>
+          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Model</label>
+          <select id="llm-model" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+            <option value="MiniMax-M2.7">MiniMax M2.7 (Turbo, terbaru)</option>
+            <option value="MiniMax-Text-01-Turbo">MiniMax Text-01 Turbo</option>
+            <option value="MiniMax-Text-01">MiniMax Text-01 (Base)</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:22px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
+            <input type="checkbox" id="llm-enabled" onchange="applyLLMConfig()">
+            <span>Aktifkan LLM</span>
+          </label>
+          <button class="btn btn-outline btn-sm" onclick="applyLLMConfig()">💾 SIMPAN</button>
+          <span id="llm-save-status" style="font-size:0.7rem;opacity:0.6;"></span>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:0.65rem;opacity:0.5;">
+        Digunakan untuk: auto-reply komentar TikTok (natural) &amp; generate tebak-tebakan baru
+      </div>
+      <div style="margin-top:8px;font-size:0.65rem;opacity:0.7;line-height:1.6;">
+        <b>Dengan LLM:</b> Reply natural + teka-teki dinamis tiap round<br>
+        <b>Tanpa LLM:</b> 36 reply statis + 40 teka-teki pool
+      </div>
     </div>
-  </div>
-</div>
-
-<!-- MiniMax LLM Config -->
-<div style="margin-top:20px;">
-  <div class="settings-section-title">🤖 MiniMax LLM</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
-    <div>
-      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">API Key</label>
-      <input type="password" id="llm-api-key" placeholder="eyJ..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
-    </div>
-    <div>
-      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Base URL</label>
-      <input type="text" id="llm-base-url" value="https://api.minimax.io/anthropic" placeholder="https://api.minimax.io/anthropic" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
-    <div>
-      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Model</label>
-      <select id="llm-model" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
-        <option value="MiniMax-M2.7">MiniMax M2.7 (Turbo, terbaru)</option>
-        <option value="MiniMax-Text-01-Turbo">MiniMax Text-01 Turbo</option>
-        <option value="MiniMax-Text-01">MiniMax Text-01 (Base)</option>
-      </select>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:22px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
-        <input type="checkbox" id="llm-enabled" onchange="applyLLMConfig()">
-        <span>Aktifkan LLM</span>
-      </label>
-      <button class="btn btn-outline btn-sm" onclick="applyLLMConfig()">💾 SIMPAN</button>
-      <span id="llm-save-status" style="font-size:0.7rem;opacity:0.6;"></span>
-    </div>
-  </div>
-  <div style="margin-top:8px;font-size:0.65rem;opacity:0.5;">
-    Digunakan untuk: auto-reply komentar TikTok (natural) &amp; generate tebak-tebakan baru
   </div>
 </div>
 
