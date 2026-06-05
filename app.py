@@ -438,7 +438,7 @@ CTAS = [
     "Mau tau jawaban? Ketik di kolom komentar ya! 👇",
     "Kirim jawaban kamu di komentar dong! 😄",
     "Coba tebak! Tulis di komentar 👇",
-    "Pake otak的部分 ya gaes 😂",
+    "Gas jawab di kolom komentar! 👇",
     "Kirim jawaban terbaikmu di kolom komentar!",
     "Ayoo coba tebak, ketik jawaban di kolom komentar! 🙌",
     "Kalo tau jawabannya, tulis di komentar ya! 👇",
@@ -451,7 +451,7 @@ CTAS = [
     "Jgn lupa ketik jawaban di kolom komentar 👇",
     "Siapa dulu yg tau? Coba ketik di komentar! 😄",
     "Ketik jawaban terbaikmu di kolom komentar! 🙌",
-    "Gakusa oblok blok ketik aja di kolom komentar 😂",
+    "Gas ketik jawabanmu di kolom komentar! 😂",
     "ayo tulis jawabanmu di kolom komentar! 👇",
     "siapa yg tau? ketik di kolom komentar 💬",
 ]
