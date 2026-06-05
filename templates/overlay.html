@@ -683,10 +683,20 @@ socket.on("auto_rec", (data) => {
 // Priority: auto_reply(4) > manual(3) > riddle(2) > cta(1)
 // Higher priority display preempts lower one immediately.
 // Same or lower priority is silently ignored (only clear can pass through).
+// Sequence numbers per source — Socket.IO HTTP polling can deliver events
+// out-of-order; we always process the latest seq per source and discard stale.
 window._displayPriority = 0;
 window._activeSource = null;
+window._lastSeq = {manual: 0, auto_reply: 0, riddle: 0, cta: 0, clear: 0};
 
 function showDisplay(source, priority, data, renderFn) {
+  const seq = data.seq || 0;
+  // Discard stale event from same source ( Socket.IO HTTP polling can reorder)
+  if (seq > 0 && seq <= window._lastSeq[source]) {
+    return;
+  }
+  window._lastSeq[source] = seq;
+
   // Allow clear to always pass through
   if (source === "clear") {
     window._displayPriority = 0;

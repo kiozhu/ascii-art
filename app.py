@@ -118,6 +118,8 @@ state = {
     "event_count": 0,
     "live_id": None,
     "active_display": None,  # {content, type} - konten yang sedang aktif display
+    # Per-source sequence counters for ordering/dedup — incremented before each emit
+    "seq": {"manual": 0, "auto_reply": 0, "riddle": 0, "cta": 0},
 }
 
 # ─── SETTINGS ────────────────────────────────────────────────
@@ -741,6 +743,8 @@ def _auto_reply_loop():
                 "type": "text",
                 "original_text": f"@{username}: {reply}",
             }
+            state["seq"]["auto_reply"] = state["seq"].get("auto_reply", 0) + 1
+            payload["seq"] = state["seq"]["auto_reply"]
             socketio.emit("auto_reply_display", payload)
             speak_async(f"{username} {reply}")
 
@@ -801,6 +805,8 @@ def _fire_riddle_ask():
         "type": "text",
         "original_text": r["q"],
     }
+    state["seq"]["riddle"] = state["seq"].get("riddle", 0) + 1
+    payload["seq"] = state["seq"]["riddle"]
     socketio.emit("riddle_display", payload)
     fallback_tag = " [static]" if r.get("fallback") else ""
     speak_async(r["q"])
@@ -825,6 +831,8 @@ def _fire_riddle_answer():
         return
 
     ascii_a = text_to_ascii(f"Jawaban: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    state["seq"]["riddle"] = state["seq"].get("riddle", 0) + 1
+    seq = state["seq"]["riddle"]
     payload = {
         "type": "riddle_answer",
         "question": r["q"],
@@ -832,6 +840,7 @@ def _fire_riddle_answer():
         "ascii_content": ascii_a,
         "timestamp": datetime.now().isoformat(),
         "fallback": r.get("fallback", False),
+        "seq": seq,
     }
     state["active_display"] = {
         "content": ascii_a,
@@ -864,12 +873,14 @@ def _fire_cta():
 
     cta_text = random.choice(CTAS)
     ascii_cta = text_to_ascii(cta_text, font=settings.get("font", "ansi_shadow"))
+    state["seq"]["cta"] = state["seq"].get("cta", 0) + 1
     payload = {
         "type": "cta",
         "content": cta_text,
         "ascii_content": ascii_cta,
         "timestamp": datetime.now().isoformat(),
         "tts_text": cta_text,  # TTS text for overlay to speak
+        "seq": state["seq"]["cta"],
     }
     state["active_display"] = {
         "content": ascii_cta,
@@ -1060,10 +1071,12 @@ def api_display_manual():
         "original_text": original_text,
     }
 
+    state["seq"]["manual"] = state["seq"].get("manual", 0) + 1
     socketio.emit("display_update", {
         "content": content,
         "type": content_type,
-        "source": "manual"
+        "source": "manual",
+        "seq": state["seq"]["manual"],
     })
 
     # TTS: speak each word as it appears on display
@@ -1183,21 +1196,27 @@ def api_auto_reply_test_riddle():
     r = gen_riddle()
     ascii_q = text_to_ascii(r["q"], font=settings.get("font", "ansi_shadow"))
     ascii_a = text_to_ascii(f"Jawaban: {r['a']}", font=settings.get("font", "ansi_shadow"))
+    state["seq"]["riddle"] = state["seq"].get("riddle", 0) + 1
+    q_seq = state["seq"]["riddle"]
+    state["seq"]["riddle"] = state["seq"].get("riddle", 0) + 1
+    a_seq = state["seq"]["riddle"]
     socketio.emit("riddle_display", {
         "type": "riddle_ask",
         "question": r["q"],
         "ascii_content": ascii_q,
         "timestamp": datetime.now().isoformat(),
         "fallback": r.get("fallback", False),
+        "seq": q_seq,
     })
     # Fire answer after 5 seconds
-    threading.Timer(5.0, lambda: socketio.emit("riddle_display", {
+    threading.Timer(5.0, lambda seq=a_seq, r=r, ascii_a=ascii_a: socketio.emit("riddle_display", {
         "type": "riddle_answer",
         "question": r["q"],
         "answer": r["a"],
         "ascii_content": ascii_a,
         "timestamp": datetime.now().isoformat(),
         "fallback": r.get("fallback", False),
+        "seq": seq,
     })).start()
     return jsonify({"ok": True, "riddle": r})
 
@@ -1432,7 +1451,8 @@ def api_gift_list():
 @app.route("/api/display/clear", methods=["POST"])
 def api_clear():
     log("EVENT", "CONTROL", "Display cleared")
-    socketio.emit("display_update", {"content": None, "type": "none", "source": "clear"})
+    state["seq"]["manual"] = state["seq"].get("manual", 0) + 1
+    socketio.emit("display_update", {"content": None, "type": "none", "source": "clear", "seq": state["seq"]["manual"]})
     return jsonify({"ok": True})
 
 # ─── TELEGRAM BOT ───────────────────────────────────────────
@@ -1669,12 +1689,14 @@ def api_font_rotate():
         content = text_to_ascii(original, font=next_font)
         state["active_display"]["content"] = content
         state["active_display"]["font"] = next_font
+        state["seq"]["manual"] = state["seq"].get("manual", 0) + 1
         socketio.emit("display_update", {
             "content": content,
             "type": state["active_display"]["type"],
             "source": "font_rotate",
             "font": next_font,
-            "fontsize": settings["fontsize"]
+            "fontsize": settings["fontsize"],
+            "seq": state["seq"]["manual"],
         })
 
     socketio.emit("settings_update", settings)
