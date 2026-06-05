@@ -965,31 +965,25 @@
           <div class="info-box">`/ascii clear` — Bersihkan</div>
         </div>
       </div>
-    <!-- MiniMax LLM Config — inside settings panel -->
+    <!-- LLM Config — inside settings panel -->
     <div style="margin-top:20px;">
-      <div class="settings-section-title">🤖 MiniMax LLM</div>
+      <div class="settings-section-title">🤖 AI Model</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
         <div>
           <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">API Key</label>
-          <input type="password" id="llm-api-key" placeholder="eyJ..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+          <input type="password" id="llm-api-key" placeholder="sk-..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
         </div>
-        <div>
-          <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Base URL</label>
-          <input type="text" id="llm-base-url" value="https://api.minimax.io/anthropic" placeholder="https://api.minimax.io/anthropic" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
         <div>
           <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Model</label>
-          <select id="llm-model" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
-            <option value="MiniMax-M3">MiniMax M3 (latest)</option>
-            <option value="MiniMax-M2.7" selected>MiniMax M2.7</option>
+          <select id="llm-model" onchange="onLLMModelChange()" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+            <option value="">Loading models...</option>
           </select>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:22px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
-            <input type="checkbox" id="llm-enabled" onchange="applyLLMConfig()">
-            <span>Aktifkan LLM</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
+          <input type="checkbox" id="llm-enabled" onchange="applyLLMConfig()">
+          <span>Aktifkan LLM</span>
           </label>
           <button class="btn btn-outline btn-sm" onclick="applyLLMConfig()">💾 SIMPAN</button>
           <span id="llm-save-status" style="font-size:0.7rem;opacity:0.6;"></span>
@@ -1400,10 +1394,63 @@ function loadTelegramStatus() {
     });
 }
 
-// ── MiniMax LLM Config ───────────────────────────────────────
+// ── LLM Config ───────────────────────────────────────────
+function loadLLMModels() {
+  fetch(`${window.location.origin}/api/llm/models`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) return;
+      const select = document.getElementById("llm-model");
+      select.innerHTML = "";
+      let currentProvider = "";
+      d.models.forEach(m => {
+        if (m.provider_name !== currentProvider) {
+          if (currentProvider !== "") {
+            // No optgroup closing needed, just add separator
+          }
+          currentProvider = m.provider_name;
+          const optgroup = document.createElement("optgroup");
+          optgroup.label = m.provider_name;
+          select.appendChild(optgroup);
+        }
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.name + " — " + m.desc;
+        opt.dataset.provider = m.provider;
+        opt.dataset.providerName = m.provider_name;
+        // Add to last optgroup or directly to select
+        const groups = select.querySelectorAll("optgroup");
+        if (groups.length > 0) {
+          groups[groups.length - 1].appendChild(opt);
+        } else {
+          select.appendChild(opt);
+        }
+      });
+      // Load current status to pre-select
+      return fetch(`${window.location.origin}/api/llm/status`);
+    })
+    .then(r => r && r.json())
+    .then(d => {
+      if (!d || !d.ok === false) return;
+      const select = document.getElementById("llm-model");
+      if (d.llm_model) select.value = d.llm_model;
+      if (d.llm_api_key_set) document.getElementById("llm-api-key").placeholder = "Key sudah diset";
+      document.getElementById("llm-enabled").checked = d.llm_enabled || false;
+    })
+    .catch(e => console.error("loadLLMModels:", e));
+}
+
+function onLLMModelChange() {
+  // Just visual feedback — provider is auto-detected server-side
+  const select = document.getElementById("llm-model");
+  const opt = select.options[select.selectedIndex];
+  if (opt && opt.dataset.providerName) {
+    // Could show provider indicator here if needed
+  }
+}
+
 function applyLLMConfig() {
   const apiKey = document.getElementById("llm-api-key").value.trim();
-  const baseUrl = document.getElementById("llm-base-url").value.trim() || "https://api.minimax.io/anthropic";
   const model = document.getElementById("llm-model").value;
   const enabled = document.getElementById("llm-enabled").checked;
   const statusEl = document.getElementById("llm-save-status");
@@ -1411,13 +1458,13 @@ function applyLLMConfig() {
   fetch(`${window.location.origin}/api/llm/config`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model, enabled })
+    body: JSON.stringify({ api_key: apiKey, model, enabled })
   })
   .then(r => r.json())
   .then(d => {
     if (d.ok) {
       statusEl.textContent = d.llm_enabled ? "✅ LLM aktif" : "⏸️ LLM mati";
-      addLog("INFO", "MiniMax LLM config saved — " + (d.llm_enabled ? "aktif" : "nonaktif"));
+      addLog("INFO", "LLM config saved — " + (d.llm_enabled ? "aktif" : "nonaktif"));
     } else {
       statusEl.textContent = "❌ Gagal menyimpan";
     }
@@ -1430,13 +1477,8 @@ function applyLLMConfig() {
 }
 
 function loadLLMStatus() {
-  fetch(`${window.location.origin}/api/llm/status`)
-    .then(r => r.json())
-    .then(d => {
-      document.getElementById("llm-enabled").checked = d.llm_enabled;
-      document.getElementById("llm-model").value = d.llm_model || "MiniMax-M2.7";
-      document.getElementById("llm-base-url").value = d.llm_base_url || "https://api.minimax.io/anthropic";
-    });
+  // Now handled by loadLLMModels() — kept for backward compat
+  loadLLMModels();
 }
 
 // ── Logs ───────────────────────────────────────────────────
