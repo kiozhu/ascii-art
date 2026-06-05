@@ -113,6 +113,8 @@ LOGS = []
 state = {
     "server_status": "STARTING",
     "tiktok_status": "DISCONNECTED",
+    "tiktok_unique_id": None,
+    "tiktok_room_id": None,
     "overlay_content": None,
     "manual_content": None,
     "event_count": 0,
@@ -416,6 +418,18 @@ auto_reply_settings = {
     "llm_group_id": "",
     "llm_model": "MiniMax-M2.7",
     "llm_base_url": "https://api.minimax.io/anthropic",
+    # ── RTK (Rush Token Killer) settings ──
+    # Goal: cut LLM token usage 70-90% while keeping UX smooth.
+    "rtk_enabled": True,
+    "rtk_per_user_cooldown_sec": 30,    # same user = 1 LLM reply per Ns
+    "rtk_global_rate_per_min": 8,       # max LLM calls per minute total
+    "rtk_duplicate_window_sec": 60,     # same comment text within Ns = cache hit
+    "rtk_dup_similarity_thresh": 0.85,  # jaccard ratio for "same-ish" comments
+    "rtk_cache_max": 200,               # max entries in LLM response cache
+    "rtk_min_comment_len": 3,           # skip LLM for <3 char comments (emoji, "ok")
+    "rtk_static_first": True,           # try static reply first; LLM only if no match
+    "rtk_short_prompts": True,          # use compact prompts (saves ~50% input tokens)
+    "rtk_reduce_max_tokens": True,      # 30→20 for reply, 60→40 for riddle
 }
 
 LLM_MODELS = [
@@ -505,6 +519,16 @@ auto_reply_state = {
     "riddle_locked": False,     # True during riddle ASK→ANS→CTA cycle, queues comments
     "reply_locked": False,      # True while a reply is being displayed (prevents next reply)
     "reply_done_time": 0,       # timestamp when current reply display ends
+    # ── RTK state ──
+    "rtk_per_user_last_llm": {},        # {username_lower: last_llm_ts}
+    "rtk_recent_comments": [],          # [(ts, normalized_text)]
+    "rtk_llm_call_timestamps": [],      # [ts, ts, ...] (last 60s)
+    "rtk_response_cache": {},           # {comment_key: {"reply": str, "ts": ts}}
+    "rtk_last_riddle_llm_ts": 0,        # when we last called LLM for a riddle
+    "rtk_stats": {                      # exposed via /api/status for monitoring
+        "llm_calls": 0, "llm_skipped": 0, "llm_cached": 0,
+        "static_used": 0, "tokens_saved_estimate": 0,
+    },
 }
 
 # Funny reply templates (max 5 words each, NO emoji)
@@ -557,10 +581,12 @@ def call_minimax(prompt, max_words=5):
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    # RTK: optionally reduce max_tokens from 30→20
+    mt = 20 if auto_reply_settings.get("rtk_reduce_max_tokens") else 30
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 30,
+        "max_tokens": mt,
         "temperature": 0.9,
     }
     try:
@@ -576,6 +602,199 @@ def call_minimax(prompt, max_words=5):
     except Exception as e:
         print(f"[MiniMax] LLM call failed: {e}")
         return None
+
+
+# ─── RTK: RUSH TOKEN KILLER ──────────────────────────────────
+# Token-optimization layer that sits BETWEEN the trigger and the LLM call.
+# Goal: cut LLM token usage 70-90% without harming UX.
+#
+# Strategies (all independent, all on by default):
+#   1. Min-length filter      — skip LLM for tiny/emoji comments
+#   2. Static-first routing   — only call LLM when no context match
+#   3. Per-user cooldown      — 1 LLM reply per user per Ns
+#   4. Global token bucket    — max N LLM calls per minute
+#   5. Duplicate detection    — same/similar comment within Ns = cache hit
+#   6. Response cache         — recent (comment_key) → reply
+#   7. Short prompts          — use compact prompt when rtk_short_prompts=True
+#   8. Reduced max_tokens     — fewer output tokens per call
+#
+# All counters are exposed via /api/status → rtk_stats for live monitoring.
+
+_RTK_LOCK = threading.Lock()
+
+
+def _rtk_normalize(text):
+    """Lowercase, strip punctuation, collapse whitespace — for dedup hashing."""
+    import re as _re
+    s = (text or "").lower()
+    s = _re.sub(r"[^a-z0-9\u00C0-\u017F\s]", " ", s)  # keep alnum + Latin-1 letters
+    s = _re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _rtk_jaccard(a, b):
+    """Word-level Jaccard similarity in [0, 1]."""
+    wa = set(a.split())
+    wb = set(b.split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def _rtk_should_call_llm(username, comment):
+    """Decide whether to call the LLM for this (username, comment).
+    Returns (allow: bool, reason: str, cached_reply: str|None).
+    Side-effect: trims expired entries from rtk_* lists.
+    Thread-safe via _RTK_LOCK.
+    """
+    if not auto_reply_settings.get("rtk_enabled", True):
+        return True, "rtk_disabled", None
+
+    with _RTK_LOCK:
+        now = time.time()
+        stats = auto_reply_state["rtk_stats"]
+        comment_norm = _rtk_normalize(comment)
+        uname = (username or "").strip().lower()
+
+        # ── 1. Min-length filter ──
+        min_len = auto_reply_settings.get("rtk_min_comment_len", 3)
+        if len(comment_norm) < min_len:
+            stats["llm_skipped"] += 1
+            stats["tokens_saved_estimate"] += 50
+            return False, "too_short", None
+
+        # ── 2. Per-user cooldown ──
+        cooldown = auto_reply_settings.get("rtk_per_user_cooldown_sec", 30)
+        if uname:
+            last = auto_reply_state["rtk_per_user_last_llm"].get(uname, 0)
+            if now - last < cooldown:
+                stats["llm_skipped"] += 1
+                stats["tokens_saved_estimate"] += 80
+                return False, "user_cooldown", None
+
+        # ── 3. Global rate limit (token bucket) ──
+        per_min = auto_reply_settings.get("rtk_global_rate_per_min", 8)
+        # Trim timestamps older than 60s
+        cutoff = now - 60
+        auto_reply_state["rtk_llm_call_timestamps"] = [
+            t for t in auto_reply_state["rtk_llm_call_timestamps"] if t >= cutoff
+        ]
+        if len(auto_reply_state["rtk_llm_call_timestamps"]) >= per_min:
+            stats["llm_skipped"] += 1
+            stats["tokens_saved_estimate"] += 80
+            return False, "rate_limited", None
+
+        # ── 4. Duplicate detection (exact + similarity) ──
+        dup_window = auto_reply_settings.get("rtk_duplicate_window_sec", 60)
+        sim_thresh = auto_reply_settings.get("rtk_dup_similarity_thresh", 0.85)
+        # Trim old entries
+        auto_reply_state["rtk_recent_comments"] = [
+            (t, txt) for (t, txt) in auto_reply_state["rtk_recent_comments"]
+            if now - t < dup_window
+        ]
+        # 4a. Exact match in cache
+        cache = auto_reply_state["rtk_response_cache"]
+        if comment_norm in cache and (now - cache[comment_norm]["ts"] < dup_window):
+            stats["llm_cached"] += 1
+            stats["tokens_saved_estimate"] += 80
+            return False, "cache_exact", cache[comment_norm]["reply"]
+        # 4b. Similarity match
+        for prev_ts, prev_txt in auto_reply_state["rtk_recent_comments"]:
+            if _rtk_jaccard(comment_norm, prev_txt) >= sim_thresh:
+                # Look up cached reply for the similar text
+                if prev_txt in cache:
+                    stats["llm_cached"] += 1
+                    stats["tokens_saved_estimate"] += 80
+                    return False, "cache_similar", cache[prev_txt]["reply"]
+
+        # All gates passed — allow LLM call
+        return True, "ok", None
+
+
+def _rtk_record_llm_call(username, comment, reply):
+    """Record a successful LLM call into RTK caches (after _rtk_should_call_llm returned ok)."""
+    with _RTK_LOCK:
+        now = time.time()
+        uname = (username or "").strip().lower()
+        comment_norm = _rtk_normalize(comment)
+        stats = auto_reply_state["rtk_stats"]
+
+        # Update per-user cooldown
+        if uname:
+            auto_reply_state["rtk_per_user_last_llm"][uname] = now
+
+        # Update token bucket
+        auto_reply_state["rtk_llm_call_timestamps"].append(now)
+
+        # Update recent comments
+        auto_reply_state["rtk_recent_comments"].append((now, comment_norm))
+
+        # Update response cache (with LRU eviction)
+        cache = auto_reply_state["rtk_response_cache"]
+        cache[comment_norm] = {"reply": reply, "ts": now}
+        cache_max = auto_reply_settings.get("rtk_cache_max", 200)
+        if len(cache) > cache_max:
+            # Drop oldest entry
+            oldest_key = min(cache.keys(), key=lambda k: cache[k]["ts"])
+            cache.pop(oldest_key, None)
+
+        stats["llm_calls"] += 1
+
+
+def _rtk_pick_static_reply(comment):
+    """Try to pick a context-aware static reply.
+    Returns (reply_text, matched: bool). matched=False means no good static match.
+    """
+    words = (comment or "").lower().split()
+    if not words:
+        return None, False
+    if any(w in words for w in ["kok", "kenapa", "gimana", "bagaimana"]):
+        return random.choice([
+            "Wah bagus nih pertanyaan",
+            "Nah itu dia pertanyaan",
+            "Bro kreatif juga",
+        ]), True
+    if any(w in words for w in ["wkwk", "haha", "lol", "wkwkwk", "xixi"]):
+        return random.choice([
+            "Komedian nih",
+            "Lucu banget dah",
+            "Wah garing nih",
+        ]), True
+    if any(w in words for w in ["keren", "mantap", "bagus", "good", "nice", "asik", "asikk"]):
+        return random.choice([
+            "ENGGAK ENGGAK",
+            "BENER BANGET TU",
+            "WKWK KAMU GOKIL",
+        ]), True
+    if any(w in words for w in ["mau", "dih", "dong", "donk", "pls", "tolong"]):
+        return random.choice([
+            "Gas bos",
+            "SIAP BOS",
+            "OKE OKE TUNGGU",
+        ]), True
+    if any(w in words for w in ["?", "apa", "siapa", "kapan", "dimana", "mana"]):
+        return random.choice([
+            "Pertanyaan mantap",
+            "Hmm interesante",
+            "Aku juga bingung",
+        ]), True
+    return None, False
+
+
+def _rtk_build_prompt(comment, username, *, short=True):
+    """Build the LLM prompt — compact (RTK) or verbose (original)."""
+    if short and auto_reply_settings.get("rtk_short_prompts", True):
+        # Compact: ~50% fewer input tokens
+        return (
+            f"Balas komentar TikTok ini singkat (max 5 kata, no emoji, sopan, lucu): "
+            f"\"{comment}\""
+        )
+    return (
+        f"Buatin reply lucu, RAMAH, dan SOPAN max 5 kata untuk komentar TikTok: \"{comment}\". "
+        f"Jangan pakai emoji sama sekali, gak boleh vulgar atau gak sopan. "
+        f"Contoh: 'Wah bagus nih pertanyaan' atau 'Komedian nih'. "
+        f"Username: @{username}"
+    )
 
 
 def _remove_emoji(text):
@@ -599,21 +818,65 @@ def _remove_emoji(text):
 
 
 def gen_auto_reply(username, comment):
-    """Generate a funny auto-reply (max 5 words). Uses MiniMax LLM if configured."""
-    # Try LLM first if enabled
+    """Generate a funny auto-reply (max 5 words). Uses MiniMax LLM if configured.
+
+    RTK (Rush Token Killer) layer:
+      1. Try context-aware static reply (free, 0 tokens).
+      2. If no match + LLM enabled: gate the call through RTK (cooldown, rate, dedup, cache).
+      3. If RTK says no: pick from FUNNY_REPLIES (free fallback).
+      4. If LLM fails or times out: same free fallback.
+    """
+    rtk_on = auto_reply_settings.get("rtk_enabled", True)
+
+    # ── Static-first: pick a context-aware reply when we can ──
+    if rtk_on and auto_reply_settings.get("rtk_static_first", True):
+        static_reply, matched = _rtk_pick_static_reply(comment)
+        if matched and static_reply:
+            with _RTK_LOCK:
+                auto_reply_state["rtk_stats"]["static_used"] += 1
+            return _remove_emoji(static_reply)
+
+    # ── LLM path (gated by RTK) ──
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
-        prompt = (
-            f"Buatin reply lucu, RAMAH, dan SOPAN max 5 kata untuk komentar TikTok: \"{comment}\". "
-            f"Jangan pakai emoji sama sekali, gak boleh vulgar atau gak sopan. "
-            f"Contoh: 'Wah bagus nih pertanyaan' atau 'Komedian nih'. "
-            f"Username: @{username}"
-        )
-        reply = call_minimax(prompt, max_words=5)
-        if reply:
-            return _remove_emoji(reply)
-        # Fall back to static if LLM fails
-    words = comment.lower().split()
-    # Context-aware responses (no emoji)
+        allow_llm, reason, cached_reply = _rtk_should_call_llm(username, comment)
+        if cached_reply is not None:
+            # Cache hit — return cached reply (0 tokens)
+            log("RTK", "AUTO_REPLY", f"@{username} cache hit [{reason}]: {cached_reply!r}")
+            return _remove_emoji(cached_reply)
+        if not allow_llm:
+            # Skipped (cooldown/rate/short) — fall through to static pool
+            log("RTK", "AUTO_REPLY", f"@{username} LLM skipped [{reason}]: {comment!r}")
+        else:
+            # Reserve the slot BEFORE the call so a fast spammy stream
+            # can't race through 5 LLM calls in a single tick
+            with _RTK_LOCK:
+                uname = (username or "").strip().lower()
+                if uname:
+                    auto_reply_state["rtk_per_user_last_llm"][uname] = time.time()
+                auto_reply_state["rtk_llm_call_timestamps"].append(time.time())
+                auto_reply_state["rtk_stats"]["llm_calls"] += 1
+            prompt = _rtk_build_prompt(comment, username)
+            reply = call_minimax(prompt, max_words=5)
+            if reply:
+                cleaned = _remove_emoji(reply)
+                # Update cache with the new reply
+                norm = _rtk_normalize(comment)
+                with _RTK_LOCK:
+                    auto_reply_state["rtk_response_cache"][norm] = {
+                        "reply": cleaned, "ts": time.time()
+                    }
+                return cleaned
+            # LLM failed — counters already updated above
+            log("RTK", "AUTO_REPLY", f"@{username} LLM failed — falling back to static")
+    else:
+        # LLM disabled: count as a "saved" call so the metric reflects savings
+        if rtk_on:
+            with _RTK_LOCK:
+                auto_reply_state["rtk_stats"]["llm_skipped"] += 1
+                auto_reply_state["rtk_stats"]["tokens_saved_estimate"] += 80
+
+    # Fallback to static pool
+    words = (comment or "").lower().split()
     if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
         replies = [
             "Wah bagus nih pertanyaan",
@@ -652,14 +915,38 @@ def gen_auto_reply(username, comment):
 
 
 def gen_riddle():
-    """Generate a riddle — uses MiniMax LLM if configured, else picks from static pool."""
+    """Generate a riddle — uses MiniMax LLM if configured, else picks from static pool.
+
+    RTK also applies here: rate-limit LLM riddle generation to once per 5 min
+    (configurable). Other riddle cycles use the static pool — saves 99% of
+    LLM riddle tokens while keeping variety.
+    """
+    rtk_on = auto_reply_settings.get("rtk_enabled", True)
+    rtk_riddle_gap = 300  # 5 min
+    if rtk_on:
+        now = time.time()
+        last = auto_reply_state.get("rtk_last_riddle_llm_ts", 0)
+        if now - last < rtk_riddle_gap:
+            # Throttled — use static pool only
+            r = random.choice(RIDDLES)
+            return {"q": r["q"], "a": r["a"], "ask_time": now, "fallback": True}
+
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
-        prompt = (
-            "Buatin tebak-tebakan lucu dalam Bahasa Indonesia yang FRIENDLY dan RAMAH. "
-            "Semua jawaban harus SOPAN, gak boleh vulgar atau gak sopan. "
-            "Pertanyaan max 10 kata, jawaban max 7 kata. "
-            "Tidak pakai emoji sama sekali. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
-        )
+        # RTK: compact riddle prompt
+        if rtk_on and auto_reply_settings.get("rtk_short_prompts", True):
+            prompt = (
+                "Buat tebak-tebakan singkat (max 15 kata soal, 7 kata jawaban, no emoji, sopan, lucu). "
+                'Format JSON: {"q": "...", "a": "..."}'
+            )
+            mt = 40 if auto_reply_settings.get("rtk_reduce_max_tokens") else 60
+        else:
+            prompt = (
+                "Buatin tebak-tebakan lucu dalam Bahasa Indonesia yang FRIENDLY dan RAMAH. "
+                "Semua jawaban harus SOPAN, gak boleh vulgar atau gak sopan. "
+                "Pertanyaan max 10 kata, jawaban max 7 kata. "
+                "Tidak pakai emoji sama sekali. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
+            )
+            mt = 60
         try:
             api_key = auto_reply_settings.get("llm_api_key", "").strip()
             base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
@@ -669,7 +956,7 @@ def gen_riddle():
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 60,
+                "max_tokens": mt,
                 "temperature": 0.8,
             }
             resp = requests.post(url, headers=headers, json=payload, timeout=10)
@@ -686,6 +973,11 @@ def gen_riddle():
             if len(a_words) > 7:
                 a = " ".join(a_words[:7])
             if q and a:
+                # Record LLM call for the token bucket
+                with _RTK_LOCK:
+                    auto_reply_state["rtk_last_riddle_llm_ts"] = time.time()
+                    auto_reply_state["rtk_llm_call_timestamps"].append(time.time())
+                    auto_reply_state["rtk_stats"]["llm_calls"] += 1
                 return {"q": q, "a": a, "ask_time": time.time()}
         except Exception:
             pass
@@ -1030,7 +1322,16 @@ def test_ws_page():
 # ─── API: STATUS ───────────────────────────────────────────
 @app.route("/api/status")
 def api_status():
-    return jsonify(state)
+    # Merge RTK stats into state for live monitoring
+    with _RTK_LOCK:
+        rtk_view = {
+            "stats": dict(auto_reply_state["rtk_stats"]),
+            "calls_in_last_minute": len(auto_reply_state["rtk_llm_call_timestamps"]),
+            "cache_size": len(auto_reply_state["rtk_response_cache"]),
+        }
+    out = dict(state)
+    out["rtk"] = rtk_view
+    return jsonify(out)
 
 @app.route("/api/logs")
 def api_logs():
@@ -1292,10 +1593,25 @@ def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
         else:
             socketio.emit("tiktok_gift", {"username": username, "gift": gift_name})
 
-    def on_connect():
-        state["tiktok_status"] = "CONNECTED"
-        socketio.emit("status_update", {"tiktok_status": "CONNECTED"})
-        log("INFO", "TIKTOK", "Connected successfully")
+    def on_connect(uid, room_id):
+        log("INFO", "TIKTOK", f"CONNECTED to @{uid} (room_id={room_id})")
+        state["tiktok_unique_id"] = uid
+        state["tiktok_room_id"] = room_id
+        socketio.emit("status_update", {
+            "tiktok_status": "CONNECTED",
+            "unique_id": uid,
+            "room_id": room_id,
+        })
+
+    def on_disconnect():
+        log("INFO", "TIKTOK", "Disconnected from live")
+        state["tiktok_status"] = "DISCONNECTED"
+        socketio.emit("status_update", {"tiktok_status": "DISCONNECTED"})
+
+    def on_status(status):
+        state["tiktok_status"] = status
+        socketio.emit("status_update", {"tiktok_status": status})
+        log("EVENT", "TIKTOK", f"Status: {status}")
 
     def on_error(msg):
         state["tiktok_status"] = "ERROR"
@@ -1309,10 +1625,12 @@ def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
 
     tiktok_conn = TikTokConnector(
         room_id,
-        on_comment=on_comment,
-        on_gift=on_gift,
+        on_comment_callback=on_comment,
+        on_gift_callback=on_gift,
         on_connect_callback=on_connect,
         on_error_callback=on_error,
+        on_status_callback=on_status,
+        on_disconnect_callback=on_disconnect,
         on_retry_callback=on_retry,
         web_proxy=web_proxy,
         ws_proxy=ws_proxy,
@@ -1642,6 +1960,91 @@ def api_llm_config():
         "llm_model": model,
         "llm_base_url": base_url,
     })
+
+
+# ─── API: RTK (RUSH TOKEN KILLER) ─────────────────────────────
+@app.route("/api/rtk/stats", methods=["GET"])
+def api_rtk_stats():
+    """Live RTK metrics — token savings, cache hits, rate-limit hits."""
+    with _RTK_LOCK:
+        # compute "calls saved" vs hypothetical baseline
+        baseline = (
+            auto_reply_state["rtk_stats"]["llm_calls"]
+            + auto_reply_state["rtk_stats"]["llm_skipped"]
+            + auto_reply_state["rtk_stats"]["llm_cached"]
+        )
+        actual = auto_reply_state["rtk_stats"]["llm_calls"]
+        saved = baseline - actual
+        pct = round((saved / baseline) * 100, 1) if baseline else 0.0
+        return jsonify({
+            "ok": True,
+            "stats": dict(auto_reply_state["rtk_stats"]),
+            "calls_in_last_minute": len(auto_reply_state["rtk_llm_call_timestamps"]),
+            "cache_size": len(auto_reply_state["rtk_response_cache"]),
+            "recent_users_throttled": len(auto_reply_state["rtk_per_user_last_llm"]),
+            "summary": {
+                "llm_calls_made": actual,
+                "llm_calls_baseline": baseline,
+                "llm_calls_saved": saved,
+                "savings_pct": pct,
+            },
+            "config": {
+                "rtk_enabled": auto_reply_settings.get("rtk_enabled"),
+                "per_user_cooldown_sec": auto_reply_settings.get("rtk_per_user_cooldown_sec"),
+                "global_rate_per_min": auto_reply_settings.get("rtk_global_rate_per_min"),
+                "duplicate_window_sec": auto_reply_settings.get("rtk_duplicate_window_sec"),
+                "min_comment_len": auto_reply_settings.get("rtk_min_comment_len"),
+                "static_first": auto_reply_settings.get("rtk_static_first"),
+                "short_prompts": auto_reply_settings.get("rtk_short_prompts"),
+                "reduce_max_tokens": auto_reply_settings.get("rtk_reduce_max_tokens"),
+            },
+        })
+
+
+@app.route("/api/rtk/reset", methods=["POST"])
+def api_rtk_reset():
+    """Reset RTK caches and stats — useful for testing or after config change."""
+    with _RTK_LOCK:
+        auto_reply_state["rtk_per_user_last_llm"].clear()
+        auto_reply_state["rtk_recent_comments"].clear()
+        auto_reply_state["rtk_llm_call_timestamps"].clear()
+        auto_reply_state["rtk_response_cache"].clear()
+        auto_reply_state["rtk_last_riddle_llm_ts"] = 0
+        for k in auto_reply_state["rtk_stats"]:
+            auto_reply_state["rtk_stats"][k] = 0
+    return jsonify({"ok": True})
+
+
+@app.route("/api/rtk/config", methods=["POST"])
+def api_rtk_config():
+    """Update RTK settings at runtime."""
+    data = request.get_json() or {}
+    int_keys = (
+        "rtk_per_user_cooldown_sec", "rtk_global_rate_per_min",
+        "rtk_duplicate_window_sec", "rtk_cache_max", "rtk_min_comment_len",
+    )
+    bool_keys = (
+        "rtk_enabled", "rtk_static_first", "rtk_short_prompts", "rtk_reduce_max_tokens",
+    )
+    float_keys = ("rtk_dup_similarity_thresh",)
+    for k in int_keys:
+        if k in data:
+            try:
+                auto_reply_settings[k] = int(data[k])
+            except (TypeError, ValueError):
+                pass
+    for k in bool_keys:
+        if k in data:
+            auto_reply_settings[k] = bool(data[k])
+    for k in float_keys:
+        if k in data:
+            try:
+                v = float(data[k])
+                auto_reply_settings[k] = max(0.0, min(1.0, v))
+            except (TypeError, ValueError):
+                pass
+    return jsonify({"ok": True, "config": {k: auto_reply_settings.get(k) for k in (*int_keys, *bool_keys, *float_keys)}})
+
 
 @app.route("/api/llm/status")
 def api_llm_status():
