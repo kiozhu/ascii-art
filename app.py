@@ -439,6 +439,94 @@ auto_reply_settings = {
     "rtk_reduce_max_tokens": True,      # 30→20 for reply, 60→40 for riddle
 }
 
+# ─── RUNTIME STATE PERSISTENCE (autosave) ─────────────────────
+# Save config + last room_id to a JSON file so changes survive server restart.
+# File: data/runtime_state.json
+RUNTIME_STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "runtime_state.json")
+
+# Also persist: last TikTok room + last TikTok username (for auto-reconnect)
+runtime_state = {
+    "tiktok_room_id": "",
+    "tiktok_username": "",
+}
+
+
+def _load_runtime_state():
+    """Load runtime state from disk. Called once at server startup.
+    Updates auto_reply_settings + runtime_state + settings dicts in place.
+    """
+    global auto_reply_settings, runtime_state
+    if not os.path.exists(RUNTIME_STATE_PATH):
+        return
+    try:
+        with open(RUNTIME_STATE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # Merge into auto_reply_settings (only known keys)
+        for k, v in data.get("auto_reply_settings", {}).items():
+            if k in auto_reply_settings:
+                auto_reply_settings[k] = v
+        # Merge into runtime_state
+        for k, v in data.get("runtime_state", {}).items():
+            if k in runtime_state:
+                runtime_state[k] = v
+        # Merge into settings (UI/overlay)
+        for k, v in data.get("settings", {}).items():
+            if k in settings:
+                settings[k] = v
+        print(f"[AUTOSAVE] Loaded runtime state from {RUNTIME_STATE_PATH}")
+        print(f"[AUTOSAVE]   auto_reply.enabled = {auto_reply_settings.get('enabled')}")
+        print(f"[AUTOSAVE]   llm.enabled = {auto_reply_settings.get('llm_enabled')}")
+        print(f"[AUTOSAVE]   tiktok room = {runtime_state.get('tiktok_room_id', '')[:20]}")
+    except Exception as e:
+        print(f"[AUTOSAVE] Failed to load runtime state: {e}")
+
+
+def _save_runtime_state():
+    """Save current auto_reply_settings + runtime_state + settings to disk.
+    Called after every config change (LLM, auto-reply, TikTok connect, etc.)
+    Throttled internally so rapid changes don't hammer the disk.
+    """
+    import threading
+    if not hasattr(_save_runtime_state, "_timer"):
+        _save_runtime_state._timer = None
+        _save_runtime_state._lock = threading.Lock()
+
+    def _do_save():
+        try:
+            os.makedirs(os.path.dirname(RUNTIME_STATE_PATH), exist_ok=True)
+            payload = {
+                "auto_reply_settings": auto_reply_settings.copy(),
+                "runtime_state": runtime_state.copy(),
+                "settings": settings.copy(),
+                "saved_at": datetime.now().isoformat(),
+            }
+            # Write to temp file then rename for atomic write
+            tmp = RUNTIME_STATE_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, RUNTIME_STATE_PATH)
+        except Exception as e:
+            print(f"[AUTOSAVE] Failed to save runtime state: {e}")
+
+    # Debounce: if a save is already scheduled, skip scheduling another
+    with _save_runtime_state._lock:
+        if _save_runtime_state._timer is not None:
+            return  # already scheduled
+        _save_runtime_state._timer = threading.Timer(0.5, _do_save)
+        _save_runtime_state._timer.daemon = True
+        _save_runtime_state._timer.start()
+
+    def _clear_timer():
+        with _save_runtime_state._lock:
+            _save_runtime_state._timer = None
+
+    # After save runs, clear the timer slot
+    threading.Timer(0.6, _clear_timer).start()
+
+
+# Load on import — happens before any route handler can be called
+_load_runtime_state()
+
 LLM_MODELS = [
     {"id": "MiniMax-M3",      "name": "MiniMax M3 (latest)",          "desc": "Flagship, 1M context, coding & multimodal",   "provider": "minimax"},
     {"id": "MiniMax-M2.7",    "name": "MiniMax M2.7",                 "desc": "Fast, ideal for auto-reply",                   "provider": "minimax"},
@@ -1461,6 +1549,7 @@ def api_settings_get():
 def api_settings_update():
     data = request.get_json() or {}
     settings.update({k: v for k, v in data.items() if k in settings})
+    _save_runtime_state()  # save overlay/UI settings (font, colors, etc.)
     socketio.emit("settings_update", settings)
     log("INFO", "SETTINGS", f"HTTP update: {list(data.keys())}")
     return {"status": "ok", "settings": settings}
@@ -1572,6 +1661,8 @@ def api_tiktok_connect():
     web_proxy = request.json.get("web_proxy", None) or None
     ws_proxy = request.json.get("ws_proxy", None) or None
     log("EVENT", "TIKTOK", f"Connect requested to room: {room_id} | proxy: {web_proxy or 'none'}")
+    runtime_state["tiktok_room_id"] = room_id
+    _save_runtime_state()
     state["tiktok_status"] = "CONNECTING"
     socketio.emit("status_update", {"tiktok_status": "CONNECTING"})
     threading.Thread(target=connect_tiktok, args=(room_id, web_proxy, ws_proxy), daemon=True).start()
@@ -1579,6 +1670,8 @@ def api_tiktok_connect():
 
 @app.route("/api/tiktok/disconnect", methods=["POST"])
 def api_tiktok_disconnect():
+    runtime_state["tiktok_room_id"] = ""
+    _save_runtime_state()
     state["tiktok_status"] = "DISCONNECTED"
     socketio.emit("status_update", {"tiktok_status": "DISCONNECTED"})
     log("INFO", "TIKTOK", "Disconnected")
@@ -1631,6 +1724,7 @@ def api_tiktok_simulate_batch():
 @app.route("/api/auto_reply/enable", methods=["POST"])
 def api_auto_reply_enable():
     auto_reply_settings["enabled"] = True
+    _save_runtime_state()
     start_auto_reply_loop()
     # Fire first riddle immediately (don't wait idle_timeout)
     if not auto_reply_state.get("current_riddle"):
@@ -1644,6 +1738,7 @@ def api_auto_reply_enable():
 @app.route("/api/auto_reply/disable", methods=["POST"])
 def api_auto_reply_disable():
     auto_reply_settings["enabled"] = False
+    _save_runtime_state()
     stop_auto_reply_loop()
     log("INFO", "AUTO_REPLY", "Disabled")
     return jsonify({"ok": True, "enabled": False})
@@ -2118,6 +2213,7 @@ def api_llm_config():
     auto_reply_settings["llm_base_url"] = base_url
     auto_reply_settings["llm_model"] = model
     auto_reply_settings["llm_enabled"] = enabled
+    _save_runtime_state()
 
     # Persist to .env
     env_path = os.path.join(os.path.dirname(__file__), ".env")
@@ -2245,6 +2341,7 @@ def api_rtk_config():
                 auto_reply_settings[k] = max(0.0, min(1.0, v))
             except (TypeError, ValueError):
                 pass
+    _save_runtime_state()
     return jsonify({"ok": True, "config": {k: auto_reply_settings.get(k) for k in (*int_keys, *bool_keys, *float_keys)}})
 
 
@@ -2354,4 +2451,33 @@ if __name__ == "__main__":
     # Start Telegram bot
     init_telegram()
 
+    # ─── AUTOSAVE: resume previous state ──────────────────────
+    # 1) Re-enable auto-reply if it was running before
+    if auto_reply_settings.get("enabled"):
+        log("INFO", "AUTOSAVE", "Restoring auto-reply loop from previous session")
+        start_auto_reply_loop()
+        if not auto_reply_state.get("current_riddle"):
+            # Fire first riddle immediately
+            threading.Timer(0.1, _fire_riddle_ask).start()
+
+    # 2) Auto-reconnect to last TikTok room (if any)
+    last_room = runtime_state.get("tiktok_room_id", "")
+    if last_room:
+        log("INFO", "AUTOSAVE", f"Auto-reconnect to last TikTok room: {last_room}")
+        threading.Timer(2.0, lambda: _auto_reconnect_tiktok(last_room)).start()
+
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
+
+
+def _auto_reconnect_tiktok(room_id):
+    """Auto-reconnect to the last TikTok room from a previous session.
+    Called once at server startup if a saved room_id exists.
+    """
+    if not room_id:
+        return
+    if state.get("tiktok_status") in ("CONNECTED", "CONNECTING"):
+        return  # already connected/connecting
+    log("INFO", "AUTOSAVE", f"Reconnecting to TikTok room: {room_id}")
+    state["tiktok_status"] = "CONNECTING"
+    socketio.emit("status_update", {"tiktok_status": "CONNECTING"})
+    threading.Thread(target=connect_tiktok, args=(room_id, None, None), daemon=True).start()
