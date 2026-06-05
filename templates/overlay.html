@@ -752,6 +752,15 @@ socket.on("auto_reply_display", (data) => {
       <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">🤖 AUTO REPLY</div>
       ${styled}
     </div>`;
+    // Auto-clear after 7s so viewers can read
+    if (window._replyHideTimer) clearTimeout(window._replyHideTimer);
+    window._replyHideTimer = setTimeout(() => {
+      const b = document.getElementById("manual-box");
+      if (b) {
+        b.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+        b.classList.remove("active");
+      }
+    }, 7000);
   }
 });
 
