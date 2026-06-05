@@ -567,41 +567,76 @@ FUNNY_REPLIES = [
 ]
 
 
-def call_minimax(prompt, max_words=5):
-    """Call MiniMax LLM API and return response text."""
+def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None):
+    """Call MiniMax LLM API (Anthropic Messages API style).
+
+    The MiniMax API at https://api.minimax.io/anthropic is a clone of
+    Anthropic's Messages API, not OpenAI's chat completions. So we use:
+      - URL:    {base_url}/v1/messages
+      - Auth:   x-api-key header (NOT Authorization: Bearer)
+      - Body:   {"model": ..., "messages": [...], "max_tokens": ...}
+      - Reply:  data["content"][0]["text"]   (NOT data["choices"][0]["message"]["content"])
+
+    Returns the text reply (str) or None on failure.
+    """
     api_key = auto_reply_settings.get("llm_api_key", "").strip()
     base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
-    model = auto_reply_settings.get("llm_model", "MiniMax-M2.7")
+    model = model_override or auto_reply_settings.get("llm_model", "MiniMax-M2.7")
 
     if not api_key:
         return None
 
-    url = f"{base_url}/v1/chat/completions"
+    url = f"{base_url}/v1/messages"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
     }
-    # RTK: optionally reduce max_tokens from 30→20
-    mt = 20 if auto_reply_settings.get("rtk_reduce_max_tokens") else 30
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": mt,
-        "temperature": 0.9,
+        "messages": messages,
+        "max_tokens": max_tokens,
     }
+    if temperature is not None:
+        payload["temperature"] = temperature
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
-        resp.raise_for_status()
+        # Don't raise — let the caller log the body
+        if resp.status_code != 200:
+            print(f"[MiniMax] LLM HTTP {resp.status_code}: {resp.text[:200]}")
+            return None
         data = resp.json()
-        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        # Trim to max_words
-        words = text.strip().split()
-        if len(words) > max_words:
-            text = " ".join(words[:max_words])
-        return text.strip()
+        # Anthropic Messages API: {"content": [{"type": "text", "text": "..."}, ...]}
+        content = data.get("content") or []
+        if not content:
+            print(f"[MiniMax] Empty content in response: {data}")
+            return None
+        text = ""
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text += block.get("text", "")
+        return text.strip() or None
     except Exception as e:
         print(f"[MiniMax] LLM call failed: {e}")
         return None
+
+
+def call_minimax(prompt, max_words=5):
+    """Call MiniMax LLM API and return response text (≤ max_words)."""
+    # RTK: optionally reduce max_tokens from 30→20
+    mt = 20 if auto_reply_settings.get("rtk_reduce_max_tokens") else 30
+    text = _llm_request(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=mt,
+        temperature=0.9,
+    )
+    if not text:
+        return None
+    # Trim to max_words
+    words = text.strip().split()
+    if len(words) > max_words:
+        text = " ".join(words[:max_words])
+    return text.strip()
 
 
 # ─── RTK: RUSH TOKEN KILLER ──────────────────────────────────
@@ -948,21 +983,13 @@ def gen_riddle():
             )
             mt = 60
         try:
-            api_key = auto_reply_settings.get("llm_api_key", "").strip()
-            base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
-            model = auto_reply_settings.get("llm_model", "MiniMax-M2.7")
-            url = f"{base_url}/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-            payload = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": mt,
-                "temperature": 0.8,
-            }
-            resp = requests.post(url, headers=headers, json=payload, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            raw = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            raw = _llm_request(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=mt,
+                temperature=0.8,
+            )
+            if not raw:
+                raise ValueError("Empty LLM response")
             parsed = json.loads(raw.strip().strip("```json").strip("```").strip())
             q = _remove_emoji(parsed.get("q", "").strip())
             a = _remove_emoji(parsed.get("a", "").strip())
