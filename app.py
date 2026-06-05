@@ -406,6 +406,7 @@ auto_reply_settings = {
     "riddle_interval_sec": 5,  # seconds between riddle → answer
     "max_words": 5,            # max words per reply
     "reply_style": "funny",    # "funny" | "sarcastic" | "random"
+    "reply_display_sec": 7,    # seconds each reply stays on screen before next
 }
 
 # ─── RIDDLE POOL ─────────────────────────────────────────────
@@ -488,7 +489,8 @@ auto_reply_state = {
     "loop_thread": None,        # background processing thread
     "running": False,
     "riddle_locked": False,     # True during riddle ASK→ANS→CTA cycle, queues comments
-    "reply_locked": False,    # True during CTA display (5s), then set True to delay next riddle cycle
+    "reply_locked": False,      # True while a reply is being displayed (prevents next reply)
+    "reply_done_time": 0,       # timestamp when current reply display ends
 }
 
 # Funny reply templates (max 5 words each)
@@ -586,50 +588,64 @@ def _auto_reply_loop():
         has_comment = len(auto_reply_state["comment_queue"]) > 0
 
         # Skip processing if riddle cycle is active (ASK→ANS→CTA)
-        # or if reply is locked during CTA display
-        # Comments stay queued until lock is released after CTA
+        # or if currently displaying a reply (wait for display duration)
         if auto_reply_state["riddle_locked"] or auto_reply_state["reply_locked"]:
-            time.sleep(0.5)
-            continue
+            # If reply is still displaying, check if we can release lock
+            if auto_reply_state["reply_locked"]:
+                elapsed = time.time() - auto_reply_state.get("reply_start_time", 0)
+                display_sec = auto_reply_settings.get("reply_display_sec", 7)
+                if elapsed >= display_sec:
+                    auto_reply_state["reply_locked"] = False
+                else:
+                    time.sleep(0.5)
+                    continue
+            else:
+                time.sleep(0.5)
+                continue
 
         if has_comment:
-            # Process all queued comments (FIFO)
-            while auto_reply_state["comment_queue"]:
-                username, comment = auto_reply_state["comment_queue"].pop(0)
-                reply = gen_auto_reply(username, comment)
+            # Mark reply as displaying — block next comment until display done
+            auto_reply_state["reply_locked"] = True
+            auto_reply_state["reply_start_time"] = time.time()
 
-                # Render reply as ASCII art + emit
-                ascii_reply = text_to_ascii(f"@{username}: {reply}", font=settings.get("font", "ansi_shadow"))
-                payload = {
-                    "type": "auto_reply",
-                    "username": username,
-                    "original_comment": comment,
-                    "reply": reply,
-                    "ascii_content": ascii_reply,
-                    "timestamp": datetime.now().isoformat(),
-                }
-                state["active_display"] = {
-                    "content": ascii_reply,
-                    "type": "text",
-                    "original_text": f"@{username}: {reply}",
-                }
-                socketio.emit("auto_reply_display", payload)
-                speak_async(f"{username} {reply}")
+            # Process ONE comment at a time (FIFO)
+            username, comment = auto_reply_state["comment_queue"].pop(0)
+            reply = gen_auto_reply(username, comment)
 
-                # Update last comment time
-                auto_reply_state["last_comment_time"] = time.time()
+            # Render reply as ASCII art + emit
+            ascii_reply = text_to_ascii(f"@{username}: {reply}", font=settings.get("font", "ansi_shadow"))
+            payload = {
+                "type": "auto_reply",
+                "username": username,
+                "original_comment": comment,
+                "reply": reply,
+                "ascii_content": ascii_reply,
+                "timestamp": datetime.now().isoformat(),
+                "display_sec": auto_reply_settings.get("reply_display_sec", 7),
+            }
+            state["active_display"] = {
+                "content": ascii_reply,
+                "type": "text",
+                "original_text": f"@{username}: {reply}",
+            }
+            socketio.emit("auto_reply_display", payload)
+            speak_async(f"{username} {reply}")
 
-                # Reset riddle timer when there's activity
-                if auto_reply_state["riddle_timer"]:
-                    auto_reply_state["riddle_timer"].cancel()
+            # Update last comment time
+            auto_reply_state["last_comment_time"] = time.time()
 
-                idle_sec = auto_reply_settings["idle_timeout_sec"]
-                auto_reply_state["riddle_timer"] = threading.Timer(
-                    idle_sec, _fire_riddle_ask
-                )
-                auto_reply_state["riddle_timer"].start()
+            # Reset riddle timer when there's activity
+            if auto_reply_state["riddle_timer"]:
+                auto_reply_state["riddle_timer"].cancel()
 
-                log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
+            # Schedule next riddle after reply display duration
+            idle_sec = auto_reply_settings.get("reply_display_sec", 7)
+            auto_reply_state["riddle_timer"] = threading.Timer(
+                idle_sec, _fire_riddle_ask
+            )
+            auto_reply_state["riddle_timer"].start()
+
+            log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
         else:
             # No comments — check if we should fire a riddle
             # (riddle timer handles this via _fire_riddle_ask)
