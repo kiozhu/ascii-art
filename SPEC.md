@@ -69,6 +69,19 @@ Server Starting → Connecting → Connected → Live
 
 ## AI Auto-Reply System
 
+### MiniMax LLM Integration
+
+When LLM is enabled (via Control Panel → Settings → MiniMax LLM):
+- **Endpoint:** `POST {base_url}/v1/chat/completions` with Bearer token
+- **Comment reply:** `call_minimax(prompt)` — generates natural, context-aware reply (max 5 words)
+- **Riddle generation:** `gen_riddle()` — calls LLM with JSON prompt, parses `{"q": "...", "a": "..."}`, falls back to static pool on error
+- **Config:** API key + base URL + model name + enabled flag — all runtime-configurable via `POST /api/llm/config`
+
+When LLM is disabled — uses static fallback:
+- 40 riddles pool
+- 36 reply templates
+- Same serial lock / 7s display / priority logic
+
 ### Riddle Cycle (background)
 
 ```
@@ -135,7 +148,7 @@ ASK (teka-teki) → 5s → ANSWER (jawaban) → 5s → CTA (ajak comentar) → 5
 | Tab | Features |
 |-----|----------|
 | **DISPLAY** | Manual text, image upload, clear display |
-| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram bot config** |
+| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram Bot config**, **MiniMax LLM config** |
 | **TIKTOK LIVE** | Connect by username, residential proxy, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
 | **🤖 AUTO REPLY** | Enable/disable, queue monitor, riddle list, test comment/riddle |
@@ -149,6 +162,19 @@ Token + admin chat ID configurable at runtime via `POST /api/telegram/config`. B
 | Bot Token | From @BotFather |
 | Admin Chat ID | From @userinfobot |
 | Aktifkan checkbox | Enable/disable bot |
+
+### Settings Tab — MiniMax LLM Section
+
+API key + base URL + model + enabled configurable at runtime via `POST /api/llm/config`.
+
+| Field | Description |
+|-------|-------------|
+| API Key | MiniMax Bearer token |
+| Base URL | API endpoint (default: `https://api.minimax.io/anthropic`) |
+| Model | Model name — `MiniMax-M2.7`, `MiniMax-Text-01-Turbo`, `MiniMax-Text-01` |
+| Aktifkan checkbox | Enable LLM for auto-reply + dynamic riddles |
+
+`GET /api/llm/status` returns current config (key masked).
 
 ---
 

@@ -969,6 +969,51 @@
   </div>
 </div>
 
+<!-- MiniMax LLM Config -->
+<div style="margin-top:20px;">
+  <div class="settings-section-title">🤖 MiniMax LLM</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+    <div>
+      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">API Key</label>
+      <input type="password" id="llm-api-key" placeholder="eyJ..." style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+    </div>
+    <div>
+      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Base URL</label>
+      <input type="text" id="llm-base-url" value="https://api.minimax.io/anthropic" placeholder="https://api.minimax.io/anthropic" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+    <div>
+      <label style="font-size:0.65rem;opacity:0.5;display:block;margin-bottom:4px;">Model</label>
+      <select id="llm-model" style="width:100%;background:#111;border:1px solid #00ff4144;color:#00ff41;font-family:'Courier New',monospace;font-size:0.8rem;padding:8px;border-radius:4px;outline:none;">
+        <option value="MiniMax-M2.7">MiniMax M2.7 (Turbo, terbaru)</option>
+        <option value="MiniMax-Text-01-Turbo">MiniMax Text-01 Turbo</option>
+        <option value="MiniMax-Text-01">MiniMax Text-01 (Base)</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:22px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.75rem;">
+        <input type="checkbox" id="llm-enabled" onchange="applyLLMConfig()">
+        <span>Aktifkan LLM</span>
+      </label>
+      <button class="btn btn-outline btn-sm" onclick="applyLLMConfig()">💾 SIMPAN</button>
+      <span id="llm-save-status" style="font-size:0.7rem;opacity:0.6;"></span>
+    </div>
+  </div>
+  <div style="margin-top:8px;font-size:0.65rem;opacity:0.5;">
+    Digunakan untuk: auto-reply komentar TikTok (natural) &amp; generate tebak-tebakan baru
+  </div>
+</div>
+
+<!-- Auto-Reply Settings -->
+<div style="margin-top:20px;">
+  <div class="settings-section-title">💬 Auto-Reply & Riddles</div>
+  <div style="margin-top:8px;font-size:0.65rem;opacity:0.7;line-height:1.6;">
+    <b>Dengan LLM:</b> Reply natural + teka-teki dinamis tiap round<br>
+    <b>Tanpa LLM:</b> 36 reply statis + 40 teka-teki pool
+  </div>
+</div>
+
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 const SERVER = window.location.hostname + ":5050";
@@ -1354,6 +1399,45 @@ function loadTelegramStatus() {
     });
 }
 
+// ── MiniMax LLM Config ───────────────────────────────────────
+function applyLLMConfig() {
+  const apiKey = document.getElementById("llm-api-key").value.trim();
+  const baseUrl = document.getElementById("llm-base-url").value.trim() || "https://api.minimax.io/anthropic";
+  const model = document.getElementById("llm-model").value;
+  const enabled = document.getElementById("llm-enabled").checked;
+  const statusEl = document.getElementById("llm-save-status");
+
+  fetch(`${window.location.origin}/api/llm/config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model, enabled })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      statusEl.textContent = d.llm_enabled ? "✅ LLM aktif" : "⏸️ LLM mati";
+      addLog("INFO", "MiniMax LLM config saved — " + (d.llm_enabled ? "aktif" : "nonaktif"));
+    } else {
+      statusEl.textContent = "❌ Gagal menyimpan";
+    }
+    setTimeout(() => { statusEl.textContent = ""; }, 3000);
+  })
+  .catch(e => {
+    statusEl.textContent = "❌ Error: " + e;
+    addLog("ERROR", "LLM config error: " + e);
+  });
+}
+
+function loadLLMStatus() {
+  fetch(`${window.location.origin}/api/llm/status`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById("llm-enabled").checked = d.llm_enabled;
+      document.getElementById("llm-model").value = d.llm_model || "MiniMax-M2.7";
+      document.getElementById("llm-base-url").value = d.llm_base_url || "https://api.minimax.io/anthropic";
+    });
+}
+
 // ── Logs ───────────────────────────────────────────────────
 function addLog(level, msg) {
   const box = document.getElementById("logs-content");
@@ -1510,6 +1594,7 @@ function loadRiddles() {
 addLog("INFO", "Control panel loaded");
 addLog("INFO", `Server: ${SERVER}`);
 loadTelegramStatus();
+loadLLMStatus();
 loadRiddles();
 </script>
 </body>

@@ -60,8 +60,14 @@ Copy `.env.example` to `.env`:
 | `TELEGRAM_ADMIN_CHAT_ID` | Optional | Your Telegram chat ID (get from @userinfobot) |
 | `TELEGRAM_ENABLED` | Optional | Set `true` to enable bot, or configure via Control Panel |
 | `TIKTOK_USERNAME` | Optional | TikTok username to monitor (no password needed) |
+| `MINIMAX_API_KEY` | Optional | MiniMax API key for LLM auto-reply + dynamic riddles |
+| `MINIMAX_BASE_URL` | Optional | MiniMax API base URL (default: `https://api.minimax.io/anthropic`) |
+| `MINIMAX_MODEL` | Optional | Model name (default: `MiniMax-M2.7`) |
+| `MINIMAX_ENABLED` | Optional | Set `true` to enable LLM, or configure via Control Panel |
 
 > **Telegram bot config** — Set token + chat ID directly in **Control Panel → Settings → Telegram Bot** section. No need to edit .env manually.
+
+> **MiniMax LLM config** — Set API key + model + enable directly in **Control Panel → Settings → MiniMax LLM** section. No need to edit .env manually.
 
 > **No TikTok credentials needed** — TikTokLive uses anonymous WebSocket connection via username only.
 
@@ -85,7 +91,7 @@ If running on a VPS, TikTok may block the connection due to data-center IP. Add 
 | Tab | Features |
 |-----|----------|
 | **DISPLAY** | Manual text, image upload, clear display |
-| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram bot config** |
+| **SETTINGS** | Font (7 styles), FG/BG color, gradient, matrix rain, screenshot mode, **Telegram Bot config**, **MiniMax LLM config** |
 | **TIKTOK LIVE** | Connect by username, residential proxy support, room ID input |
 | **GIFT** | Test animations, blink/duration/speed/sound settings |
 | **🤖 AUTO REPLY** | Enable/disable, queue monitor, riddle list, test comment/riddle |
@@ -119,16 +125,21 @@ Reply to a photo with `/ascii image` to send it to overlay.
 
 ### AI Auto-Reply (🤖 Auto Reply Tab)
 
-**Riddle system** — Background tebak-tebakan cycle:
+**MiniMax LLM integration** — when enabled, uses MiniMax M2.7 for natural dynamic responses:
+- **Comment reply** — generates natural, context-aware replies (max 5 words)
+- **Riddle generation** — creates new tebak-tebakan dynamically (JSON: `{"q": "...", "a": "..."}`)
+- Falls back to static pool if LLM unavailable
+
+**Riddle system** — background tebak-tebakan cycle:
 - ASK → 5s → ANSWER → 5s → CTA → 5s → next riddle
-- 40 riddles (absurd, logika, budaya, tech)
+- 40 static riddles (absurd, logika, budaya, tech) — replaced by LLM when enabled
 - Skipped automatically when comment queue has items
 
-**Comment reply** — Top priority over riddles:
+**Comment reply** — top priority over riddles:
 - Strict serial: **1 reply every 7 seconds**
 - No batching, no overlap ever
 - Reply lock held during full display duration
-- 36 funny/sopan replies (≤5 words each)
+- 36 funny/sopan replies (≤5 words each) — replaced by LLM when enabled
 
 **TTS** — gTTS reads all riddle phases + replies aloud
 
@@ -165,4 +176,5 @@ ascii-art/
 - **pyfiglet** — ASCII text rendering
 - **TikTokLive** — TikTok live chat WebSocket (v6.6.5)
 - **gTTS** — Google text-to-speech (server-side, suara cewek)
+- **requests** — MiniMax LLM API calls (HTTP)
 - **eventlet** / **threading** — async background processing

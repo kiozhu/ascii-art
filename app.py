@@ -26,6 +26,7 @@ import random
 import pyfiglet
 import threading
 from datetime import datetime
+import requests
 from gtts import gTTS
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
@@ -402,12 +403,24 @@ DEFAULT_GIFT_DISPLAY_DURATION = 5000  # ms
 # ─── AUTO REPLY (AI Chat) SETTINGS ──────────────────────────
 auto_reply_settings = {
     "enabled": False,
-    "idle_timeout_sec": 5,     # seconds to wait after last comment before starting riddle cycle
-    "riddle_interval_sec": 5,  # seconds between riddle → answer
-    "max_words": 5,            # max words per reply
-    "reply_style": "funny",    # "funny" | "sarcastic" | "random"
-    "reply_display_sec": 7,    # seconds each reply stays on screen before next
+    "idle_timeout_sec": 5,
+    "riddle_interval_sec": 5,
+    "max_words": 5,
+    "reply_style": "funny",
+    "reply_display_sec": 7,
+    # MiniMax LLM config (runtime-configurable via /api/llm/config)
+    "llm_enabled": False,
+    "llm_api_key": "",
+    "llm_group_id": "",
+    "llm_model": "MiniMax-M2.7",
+    "llm_base_url": "https://api.minimax.io/anthropic",
 }
+
+LLM_MODELS = [
+    {"id": "MiniMax-M2.7",   "name": "MiniMax M2.7 (Turbo, terbaru)", "desc": "Tercepat & tercerdas"},
+    {"id": "MiniMax-Text-01-Turbo", "name": "MiniMax Text-01 Turbo", "desc": "Cepat, good balance"},
+    {"id": "MiniMax-Text-01", "name": "MiniMax Text-01", "desc": "Base model, lebih detail"},
+]
 
 # ─── RIDDLE POOL ─────────────────────────────────────────────
 # Each riddle is a dict with {question, answer} — max ~5 words each
@@ -529,8 +542,53 @@ FUNNY_REPLIES = [
 ]
 
 
+def call_minimax(prompt, max_words=5):
+    """Call MiniMax LLM API and return response text."""
+    api_key = auto_reply_settings.get("llm_api_key", "").strip()
+    base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
+    model = auto_reply_settings.get("llm_model", "MiniMax-M2.7")
+
+    if not api_key:
+        return None
+
+    url = f"{base_url}/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 50,
+        "temperature": 0.9,
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        # Trim to max_words
+        words = text.strip().split()
+        if len(words) > max_words:
+            text = " ".join(words[:max_words])
+        return text.strip()
+    except Exception as e:
+        print(f"[MiniMax] LLM call failed: {e}")
+        return None
+
+
 def gen_auto_reply(username, comment):
-    """Generate a funny auto-reply (max 5 words)."""
+    """Generate a funny auto-reply (max 5 words). Uses MiniMax LLM if configured."""
+    # Try LLM first if enabled
+    if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
+        prompt = (
+            f'Buatin reply lucu max 5 kata untuk komentar TikTok: "{comment}". '
+            f'Jangan pakai emoji, max 5 kata.'
+        )
+        reply = call_minimax(prompt, max_words=5)
+        if reply:
+            return reply
+        # Fall back to static if LLM fails
     words = comment.lower().split()
     # Context-aware responses
     if any(w in words for w in ["kok", "kenapa", "gimana", "apa", "bagaimana"]):
@@ -569,7 +627,41 @@ def gen_auto_reply(username, comment):
 
 
 def gen_riddle():
-    """Pick a random riddle from pool."""
+    """Generate a riddle — uses MiniMax LLM if configured, else picks from static pool."""
+    if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
+        prompt = (
+            "Buatin tebak-tebakan lucu dalam Bahasa Indonesia. "
+            "Jawaban max 3 kata. Format JSON saja: {\"q\": \"pertanyaan\", \"a\": \"jawaban\"}. "
+            "Tidak pakai emoji."
+        )
+        try:
+            api_key = auto_reply_settings.get("llm_api_key", "").strip()
+            base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
+            model = auto_reply_settings.get("llm_model", "MiniMax-M2.7")
+            url = f"{base_url}/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 80,
+                "temperature": 0.9,
+            }
+            resp = requests.post(url, headers=headers, json=payload, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # Parse JSON
+            import re as _re
+            m = _re.search(r'\{[^}]+\}', text)
+            if m:
+                obj = json.loads(m.group())
+                q = obj.get("q", "").strip()
+                a = obj.get("a", "").strip()
+                if q and a:
+                    return {"q": q, "a": a, "ask_time": time.time()}
+        except Exception as e:
+            print(f"[MiniMax] Riddle gen failed: {e}")
+    # Fallback to static pool
     r = random.choice(RIDDLES)
     return {"q": r["q"], "a": r["a"], "ask_time": time.time()}
 
@@ -1413,6 +1505,76 @@ def api_telegram_status():
     return jsonify({
         "enabled": telegram_bot is not None,
         "token_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN", "").strip()),
+    })
+
+# ─── API: MiniMax LLM CONFIG ─────────────────────────────────
+@app.route("/api/llm/config", methods=["POST"])
+def api_llm_config():
+    """Update MiniMax LLM config at runtime — key + base_url + model + enabled"""
+    data = request.get_json() or {}
+    api_key = data.get("api_key", "").strip()
+    base_url = data.get("base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
+    model = data.get("model", "MiniMax-M2.7").strip()
+    enabled = bool(data.get("enabled", False))
+
+    # Update runtime settings
+    auto_reply_settings["llm_api_key"] = api_key
+    auto_reply_settings["llm_base_url"] = base_url
+    auto_reply_settings["llm_model"] = model
+    auto_reply_settings["llm_enabled"] = enabled
+
+    # Persist to .env
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            env_lines = f.readlines()
+
+    keys_to_set = {
+        "MINIMAX_API_KEY": api_key,
+        "MINIMAX_BASE_URL": base_url,
+        "MINIMAX_MODEL": model,
+        "MINIMAX_ENABLED": "true" if enabled else "false",
+    }
+    keys_found = set()
+    new_lines = []
+    for line in env_lines:
+        stripped = line.strip()
+        matched = False
+        for key in keys_to_set:
+            if stripped.startswith(f"{key}="):
+                new_lines.append(f"{key}={keys_to_set[key]}\n")
+                keys_found.add(key)
+                matched = True
+                break
+        if not matched:
+            new_lines.append(line)
+    for key, val in keys_to_set.items():
+        if key not in keys_found:
+            new_lines.append(f"{key}={val}\n")
+    with open(env_path, "w") as f:
+        f.writelines(new_lines)
+
+    # Reload env
+    for k, v in keys_to_set.items():
+        os.environ[k] = v
+
+    return jsonify({
+        "ok": True,
+        "llm_enabled": enabled,
+        "llm_api_key_set": bool(api_key),
+        "llm_model": model,
+        "llm_base_url": base_url,
+    })
+
+@app.route("/api/llm/status")
+def api_llm_status():
+    """Return MiniMax LLM status"""
+    return jsonify({
+        "llm_enabled": auto_reply_settings.get("llm_enabled", False),
+        "llm_api_key_set": bool(auto_reply_settings.get("llm_api_key", "").strip()),
+        "llm_model": auto_reply_settings.get("llm_model", "MiniMax-M2.7"),
+        "llm_base_url": auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic"),
     })
 
 # ─── SERVER STATUS ─────────────────────────────────────────
