@@ -363,7 +363,12 @@ def start_telegram_bot(bot_token=None, admin_chat_id=None, command_prefix=None):
         print("[TELEGRAM] No bot token configured")
         return None
 
-    admin_chat_id_int = int(admin_id) if admin_id.isdigit() else None
+    admin_chat_id_int = None
+    if admin_id is not None:
+        if isinstance(admin_id, int):
+            admin_chat_id_int = admin_id
+        elif isinstance(admin_id, str) and admin_id.isdigit():
+            admin_chat_id_int = int(admin_id)
     bot = TelegramBot(token, admin_chat_id_int, prefix)
     bot.start()
     return bot
