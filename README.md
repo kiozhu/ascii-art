@@ -1,260 +1,172 @@
-# ASCII Art Overlay System
+# 🎮 ASCII Art Overlay — TikTok Live Auto-Reply
 
-Overlay ASCII real-time untuk live streaming (OBS). Flask + Socket.IO powered, integrasi chat TikTok Live, auto-reply AI dengan tebak-tebakan, **RTK (Rush Token Killer)** untuk hemat 70-90% token LLM, animasi gift, suara TTS, matrix rain, screenshot & recording, Control Panel lengkap.
+Overlay ASCII art untuk TikTok Live dengan auto-reply AI, tebak-tebakan dinamis, gift animation, dan TTS.
 
----
+## ✨ Fitur
 
-## 🚀 Mulai Cepat
+### 🤖 Auto-Reply AI
+- Balas komentar secara otomatis menggunakan LLM (Xiaomi MiMo / MiniMax)
+- Reply natural dalam Bahasa Indonesia (max 8 kata)
+- Anti-spam: duplikat komentar, limit per user, cooldown
 
-### 1. Clone & Install
+### 🎯 Tebak-Tebakan Dinamis
+- Generate tebak-tebakan lucu via LLM (pre-queue, tidak berulang)
+- Fallback ke static pool (67+ riddle) kalau LLM timeout
+- Siklus: Tanya → Jawab → CTA (60 detik interval)
 
+### 🎁 Gift Animation
+- Animasi robot eye + "terima kasih @username" untuk setiap gift
+- TTS: suara terima kasih saat gift masuk
+- Interleaving: gift ↔ comment selang-seling
+- Anti-spam gift: 3 detik cooldown (30 detik untuk user sama)
+
+### 🔊 TTS (Text-to-Speech)
+- Suara untuk setiap reply, riddle, dan gift
+- Queue system: hanya 1 TTS bermain pada satu waktu
+- Sinkron dengan display (tidak telat/kecepetan)
+
+### 🎨 Display Gradient
+- Warna gradasi dari control panel (tidak hardcoded)
+- Semua display: auto-reply, riddle, CTA, gift → pakai gradient
+- Persist setelah refresh (tidak hilang)
+
+### 🛠️ System Tools
+- Hapus cache manual dari control panel
+- Hapus queue manual dari control panel
+- .env management dari control panel
+- Auto-clear queue saat disconnect
+
+### 🔄 Auto-Start
+- Auto-enable LLM dari `.env` saat startup
+- Auto-connect TikTok dari `.env` saat startup
+- Auto-enable auto-reply dari `.env` saat startup
+- Data persisten di `data/.env.local` + `data/runtime_state.json`
+
+## 🚀 Cara Pakai
+
+### 1. Install Dependencies
 ```bash
-git clone git@github.com:kiozhu/ascii-art.git
-cd ascii-art
 pip install -r requirements.txt
+playwright install chromium
 ```
 
-### 2. Konfigurasi
-
-```bash
-cp .env.example .env
-# Edit .env — hanya TELEGRAM_BOT_TOKEN yang wajib; TikTok opsional
-```
-
+### 2. Setup `.env`
 ```env
-TELEGRAM_BOT_TOKEN=token_telegram_bot_kamu
+# TikTok
+TIKTOK_USERNAME=rach.ai
+
+# LLM (Xiaomi MiMo)
+XIAOMI_API_KEY=sk-***
+XIAOMI_MODEL=mimo-v2.5-pro
+XIAOMI_ENABLED=true
+
+# Telegram (opsional)
+TELEGRAM_BOT_TOKEN=***
+TELEGRAM_CHAT_ID=***
+TELEGRAM_ENABLED=true
+
+# Auto-reply
+AUTO_REPLY_ENABLED=true
 ```
 
-### 3. Jalankan
-
+### 3. Jalankan Server
 ```bash
 python app.py
 ```
 
-Buka browser:
-- **Overlay:** `http://localhost:5050` (gunakan di OBS)
-- **Control Panel:** `http://localhost:5050/control`
+Server otomatis:
+- Enable LLM dari `.env`
+- Connect ke TikTok dari `TIKTOK_USERNAME`
+- Start auto-reply + riddle cycle
+- Pre-fill riddle queue dari LLM
 
----
+### 4. Buka Control Panel
+```
+http://localhost:5050/control
+```
 
-## 🖥️ Setup OBS
+Fitur control panel:
+- 🎨 Pengaturan display (font, warna, gradient)
+- 🤖 Konfigurasi LLM (API key, model)
+- 📱 Konfigurasi TikTok (username, connect/disconnect)
+- 🎁 Pengaturan gift (animasi, suara)
+- 🛠️ System tools (hapus cache, hapus queue, lihat .env)
 
-1. Tambah **Browser Source** di OBS
-2. URL: `http://localhost:5050` (atau `http://IP_KAMU:5050` untuk remote)
-3. Width: `1920`, Height: `1080`
-4. CSS:
-   ```css
-   body { overflow: hidden; margin: 0; padding: 0; background: #000; }
-   ```
-5. Refresh on launch: **No**
+### 5. Buka Overlay
+```
+http://localhost:5050/
+```
 
----
+Tambahkan sebagai Browser Source di OBS:
+- URL: `http://localhost:5050/`
+- Width: 1920, Height: 1080
+- ✅ Shutdown source when not visible
+
+## 📡 API Endpoints
+
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/status` | GET | Status server + TikTok + LLM |
+| `/api/settings` | GET | Pengaturan display |
+| `/api/settings/update` | POST | Update pengaturan |
+| `/api/tiktok/connect` | POST | Connect ke TikTok Live |
+| `/api/tiktok/disconnect` | POST | Disconnect + clear queue |
+| `/api/tiktok/simulate` | POST | Simulate comment/gift |
+| `/api/llm/config` | POST | Konfigurasi LLM |
+| `/api/llm/models` | GET | Daftar model LLM |
+| `/api/clear_cache` | POST | Hapus semua cache |
+| `/api/clear_queue` | POST | Hapus comment + gift queue |
+| `/api/env` | GET | Baca .env (key masked) |
+| `/api/env/update` | POST | Update .env |
+
+## 🏗️ Arsitektur
+
+```
+┌─────────────────────────────────────────────┐
+│  TikTok Live (piratetok-live-py)            │
+│  └── Comment → on_comment()                 │
+│  └── Gift → on_gift()                       │
+├─────────────────────────────────────────────┤
+│  Auto-Reply Loop                            │
+│  └── Gift Queue (max 30) → Gift Display     │
+│  └── Comment Queue (max 12) → LLM Reply     │
+│  └── Riddle Queue (LLM pre-gen) → Riddle    │
+├─────────────────────────────────────────────┤
+│  Display Layer (Socket.IO)                  │
+│  └── auto_reply_display (priority 4)        │
+│  └── riddle_display (priority 2)            │
+│  └── cta_display (priority 1)               │
+│  └── gift_display (separate box)            │
+├─────────────────────────────────────────────┤
+│  TTS Queue (1 at a time)                    │
+│  └── Edge TTS → Browser Audio               │
+└─────────────────────────────────────────────┘
+```
 
 ## ⚙️ Konfigurasi
 
-Salin `.env.example` ke `.env`:
+### LLM Providers
+| Provider | Model | API Format |
+|----------|-------|------------|
+| Xiaomi MiMo | mimo-v2.5-pro | OpenAI-compatible |
+| Xiaomi MiMo | mimo-v2.5-flash | OpenAI-compatible |
+| MiniMax | MiniMax-M2.7 | Anthropic |
 
-| Variabel | Wajib | Deskripsi |
-|----------|-------|-----------|
-| `TELEGRAM_BOT_TOKEN` | Opsional | Token bot Telegram (dapat dari @BotFather) |
-| `TELEGRAM_ADMIN_CHAT_ID` | Opsional | Chat ID Telegram kamu (dapat dari @userinfobot) |
-| `TELEGRAM_ENABLED` | Opsional | Set `true` untuk aktifkan bot, atau atur via Control Panel |
-| `TIKTOK_USERNAME` | Opsional | Username TikTok yang mau di-monitor (tanpa password) |
-| `MINIMAX_API_KEY` | Opsional | API key MiniMax untuk auto-reply LLM + tebak-tebakan dinamis |
-| `MINIMAX_BASE_URL` | Opsional | Base URL API MiniMax (default: `https://api.minimax.io/anthropic`) |
-| `MINIMAX_MODEL` | Opsional | Nama model (`MiniMax-M3` atau `MiniMax-M2.7`, default: `MiniMax-M2.7`) |
-| `MINIMAX_ENABLED` | Opsional | Set `true` untuk aktifkan LLM, atau atur via Control Panel |
+### Queue Limits
+| Queue | Max | Drop Policy |
+|-------|-----|-------------|
+| Comment | 12 | Drop oldest |
+| Gift | 30 | Drop oldest |
+| Riddle | 3 | Pre-gen LLM |
 
-> **Konfigurasi bot Telegram** — Atur token + chat ID langsung di **Control Panel → Settings → Telegram Bot**. Tidak perlu edit .env manual.
+### Timing
+| Setting | Default | Deskripsi |
+|---------|---------|-----------|
+| reply_display_sec | 9 | Durasi display reply |
+| riddle_interval_sec | 10 | Interval antar riddle |
+| idle_timeout_sec | 60 | Timeout sebelum riddle baru |
+| gift_cooldown | 3s/30s | Anti-spam gift |
 
-> **Konfigurasi LLM** — Atur API key + model + aktifkan langsung di **Control Panel → Settings → AI Model**. Tidak perlu edit .env manual.
+## 📝 License
 
-> **Tidak perlu kredensial TikTok** — TikTokLive pakai koneksi WebSocket anonim cukup dengan username.
-
-### Proxy Residensial TikTok (VPS Saja)
-
-Kalau jalan di VPS, TikTok mungkin blokir koneksi karena IP data-center. Tambah proxy residensial:
-
-1. Dapatkan proxy residensial (Bright Data, Oxylabs, SmartProxy)
-2. Di **Control Panel → TikTok Live**, masukkan URL proxy:
-   ```
-   http://user:pass@host:port
-   ```
-3. Klik **CONNECT**
-
----
-
-## 🎮 Fitur
-
-### Control Panel (`/control`)
-
-| Tab | Fitur |
-|-----|-------|
-| **DISPLAY** | Teks manual, upload gambar, bersihkan display |
-| **SETTINGS** | Font (7 gaya), warna FG/BG, gradient, matrix rain, mode screenshot, **konfigurasi Bot Telegram**, **konfigurasi AI Model** |
-| **TIKTOK LIVE** | Connect by username, support proxy residensial, input room ID |
-| **GIFT** | Test animasi, pengaturan blink/durasi/kecepatan/suara |
-| **🤖 AUTO REPLY** | Aktifkan/nonaktifkan, monitor antrian, daftar tebak-tebakan, test komentar/tebak-tebakan |
-
-### Integrasi TikTok Live
-
-- **Tampilan gift** — 30+ animasi ASCII art gift (mawar, mahkota, roket, naga, dll.)
-- **Komentar chat** — ditampilkan sebagai badge di overlay, masuk ke antrian auto-reply
-- **Tampilan username** — ASCII art username dengan efek glitch
-- **Animasi robot eyes** — 4 scene per gift
-- **Suara TTS** — gTTS membaca username + reply dengan keras
-
-**Connector** — `tiktok/connector.py` membungkus TikTokLive v6.6.5 dengan:
-- Propagasi status lengkap: `RESOLVING → CONNECTING → CONNECTED → DISCONNECTED/ERROR/LIVE_ENDED/RETRYING:N/M`
-- 9 event handler: CommentEvent, GiftEvent, LikeEvent, FollowEvent, JoinEvent, ShareEvent, ConnectEvent, DisconnectEvent, LiveEndEvent
-- Auto-retry dengan exponential backoff (3 percobaan, delay 5s, lebih lama saat rate-limit)
-- Deteksi tipe error spesifik: `AlreadyConnected`, `LiveNotFound`, `FailedFetchRoomInfo`, `SignatureRateLimitReached`
-- Logger tulis ke stderr (terlihat di console server)
-- 5 callback hooks: `on_comment`, `on_gift`, `on_connect(uid, room_id)`, `on_status`, `on_error`, `on_disconnect`, `on_retry`
-
-**Audit nama field** — semua nama field event diverifikasi terhadap `proto/tiktok_proto.py`:
-| Event | Field | Path |
-|-------|-------|------|
-| CommentEvent | username | `event.user_info` (bukan `.user`) |
-| CommentEvent | text | `event.content` (bukan `.comment`) |
-| GiftEvent | username | `event.from_user` (bukan `.user`) |
-| GiftEvent | gift obj | `event.m_gift` (bukan `.gift`) |
-| User | name | `user.nick_name` (bukan `.nickname`) |
-
-### Bot Telegram (`/control → Settings → Telegram Bot`)
-
-Atur token bot + admin chat ID langsung dari control panel — tidak perlu edit .env.
-
-Perintah (prefix `ascii`, contoh `/ascii display halo`):
-
-| Perintah | Deskripsi |
-|----------|-----------|
-| `/ascii display <teks>` | Tampilkan teks di overlay |
-| `/ascii big <teks>` | Teks ASCII art besar |
-| `/ascii block <teks>` | Teks blok pixel |
-| `/ascii half <teks>` | Shading setengah blok |
-| `/ascii clear` | Bersihkan overlay |
-| `/ascii tiktok <user>` | Connect ke room TikTok |
-| `/ascii status` | Status server |
-| Teks langsung | Ketik langsung untuk ditampilkan |
-
-Balas foto dengan `/ascii image` untuk kirim ke overlay.
-
-### Auto-Reply AI (Tab 🤖 Auto Reply)
-
-**Integrasi LLM multi-provider** — saat aktif, gunakan MiniMax atau Xiaomi MiMo untuk respons dinamis yang natural:
-- **Balas komentar** — generate balasan natural, sesuai konteks (max 5 kata)
-- **Generate tebak-tebakan** — buat tebak-tebakan baru secara dinamis (JSON: `{"q": "...", "a": "..."}`)
-- Fallback ke pool statis kalau LLM tidak tersedia
-
-**Indikator fallback** — overlay membedakan LLM vs statis secara visual:
-- Tag `[AI]` = tebak-tebakan dari LLM (pertanyaan cyan / jawaban emas)
-- Tag `[static]` = fallback pool statis (pertanyaan merah / jawaban merah / glow merah)
-- TTS menambah "[static]" saat membaca jawaban fallback
-- Log menunjukkan `[RIDDLE ASK: [static]]` vs `[RIDDLE ASK: ...]` untuk lacak event fallback
-
-**Sistem tebak-tebakan** — siklus tebak-tebakan background:
-- ASK → 5s → ANSWER → 5s → CTA → 5s → tebak-tebakan berikutnya
-- 40 tebak-tebakan statis (absurd, logika, budaya, tech) — diganti LLM saat aktif
-- Dilewati otomatis saat antrian komentar ada item
-
-**Kebijakan no emoji** — semua output bersih dari emoji:
-- Reply LLM di-strip emoji via regex `_remove_emoji()`
-- Pool statis (FUNNY_REPLIES) sudah bersih — tanpa emoji
-- Label overlay di-strip emoji ("AUTO REPLY" bukan "🤖 AUTO REPLY")
-- TTS hanya baca teks bersih
-
-**Balas komentar** — prioritas tertinggi di atas tebak-tebakan:
-- Komentar diproses satu-per-satu (tidak batching)
-- Tampil 7 detik, tidak overlap dengan tebak-tebakan/CTA
-
-**Pencegahan tabrakan tampilan** — sistem prioritas ketat:
-
-| Sumber | Prioritas | Catatan |
-|--------|-----------|---------|
-| Auto Reply | 4 (tertinggi) | Komentar masuk — preempt semua |
-| Manual Display | 3 | User ketik manual — preempt tebak-tebakan/CTA |
-| Riddle ASK/ANSWER | 2 | Preempt CTA saja |
-| CTA | 1 (terendah) | Di-preempt oleh semua di atas |
-
-**Pencegahan race condition** — sequence number per-sumber:
-- Setiap emit Socket.IO disertai `seq` counter per sumber
-- Browser track `window._lastSeq[source]` — event dengan seq lebih rendah di-drop
-- Bergaransi urutan satu-per-satu bahkan dengan transport HTTP long-polling
-- Serial ketat: **1 reply setiap 7 detik**
-- Tidak pernah batching, tidak pernah overlap
-- Reply lock dipegang selama durasi tampilan penuh
-- 36 reply lucu/sopan (≤5 kata per reply) — diganti LLM saat aktif
-
-**TTS** — gTTS membaca semua fase tebak-tebakan + reply dengan keras
-
-**RTK (Rush Token Killer)** — lapisan optimalisasi token yang duduk antara trigger dan panggilan LLM. Tujuan: kurangi penggunaan token LLM 70-90% tanpa mengorbankan UX.
-
-8 strategi, semua aktif default, semua bisa diatur saat runtime:
-
-| # | Strategi | Default | Tujuan |
-|---|----------|---------|--------|
-| 1 | Filter panjang minimum | skip LLM untuk <3 char | skip "ok", "🔥", emoji-only |
-| 2 | Routing statis-dulu | ON | coba reply statis yang cocok keyword dulu |
-| 3 | Cooldown per-user | 30s | 1 reply LLM per user per 30s |
-| 4 | Rate limit global | 8 panggilan/menit | hard cap via token bucket |
-| 5 | Deteksi duplikat | window 60s, jaccard 0.85 | teks sama/mirip → cache hit |
-| 6 | Cache respons | 200 entri LRU | peta (komentar → reply) terkini |
-| 7 | Prompt pendek | ON | ~50% token input lebih sedikit |
-| 8 | max_tokens dikurangi | ON | 30→20 untuk reply, 60→40 untuk tebak-tebakan |
-| + | Throttle tebak-tebakan | jarak 5 menit | 1 tebak-tebakan LLM per 5 menit, sisanya dari pool |
-
-**Monitoring live** — `GET /api/rtk/stats` mengembalikan:
-```json
-{
-  "stats": {"llm_calls": 2, "llm_skipped": 3, "llm_cached": 0, "static_used": 0},
-  "summary": {"llm_calls_baseline": 5, "llm_calls_made": 2, "llm_calls_saved": 3, "savings_pct": 60.0},
-  "calls_in_last_minute": 2, "cache_size": 0
-}
-```
-
-**Atur saat runtime** — `POST /api/rtk/config`:
-```json
-// Aggresif (hemat token):
-{"rtk_per_user_cooldown_sec": 60, "rtk_global_rate_per_min": 4}
-// Santai (LLM lebih sering):
-{"rtk_per_user_cooldown_sec": 10, "rtk_global_rate_per_min": 20}
-// Nonaktifkan total:
-{"rtk_enabled": false}
-```
-
-**Reset** — `POST /api/rtk/reset` bersihkan semua cache dan counter.
-
----
-
-## 📁 Struktur Proyek
-
-```
-ascii-art/
-├── app.py                  # Flask + Socket.IO + TTS + loop auto-reply
-├── app_gift_section.py     # Animasi gift sisi server
-├── tiktok/
-│   └── connector.py        # Connector WebSocket TikTokLive (web_proxy/ws_proxy)
-├── converters/
-│   ├── text.py             # Teks → ASCII
-│   ├── image.py            # Gambar → ASCII (Pillow)
-│   └── blocktext.py        # Teks blok
-├── templates/
-│   ├── overlay.html         # Overlay OBS (canvas + client Socket.IO)
-│   ├── control.html        # Panel kontrol streamer (5 tab)
-│   └── logs.html           # Log event
-├── telegram_bot/
-│   └── bot.py              # Perintah bot Telegram
-├── requirements.txt
-├── .env.example
-└── README.md
-```
-
----
-
-## 🛠️ Tech Stack
-
-- **Flask** + **Socket.IO** — server web real-time & WebSocket
-- **pyfiglet** — render teks ASCII
-- **TikTokLive** — WebSocket chat TikTok live (v6.6.5)
-- **gTTS** — Google text-to-speech (sisi server, suara cewek)
+MIT License

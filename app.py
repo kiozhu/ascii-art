@@ -15,6 +15,22 @@ WebSocket events:
 
 from dotenv import load_dotenv
 load_dotenv()
+# Also load from data/.env.local (persists API keys across restarts)
+import pathlib
+_LOCAL_ENV = pathlib.Path(__file__).parent / "data" / ".env.local"
+if _LOCAL_ENV.exists():
+    load_dotenv(_LOCAL_ENV, override=True)
+
+# Monkey-patch pyee for TikTokLive compatibility
+# pyee >= 11 moved AsyncIOEventEmitter to pyee.asyncio submodule
+# but TikTokLive imports from top-level pyee
+import pyee
+if not hasattr(pyee, 'AsyncIOEventEmitter'):
+    try:
+        from pyee.asyncio import AsyncIOEventEmitter
+        pyee.AsyncIOEventEmitter = AsyncIOEventEmitter
+    except ImportError:
+        pass
 
 import os
 import re
@@ -85,8 +101,22 @@ def emit_tts_audio(text, lang="id"):
         log("WARN", "TTS", f"emit_tts_audio failed: {e}")
 
 def speak_async(text, lang="id"):
-    """Speak text in background thread - emit to browser instead of local play"""
-    threading.Thread(target=lambda: emit_tts_audio(text, lang), daemon=True).start()
+    """Speak text in background thread - queue to prevent overlap."""
+    _TTS_QUEUE.put((text, lang))
+
+def _tts_worker():
+    """Background worker: process TTS queue one at a time."""
+    while True:
+        text, lang = _TTS_QUEUE.get()
+        try:
+            emit_tts_audio(text, lang)
+        except Exception as e:
+            log("WARN", "TTS", f"TTS worker error: {e}")
+        finally:
+            _TTS_QUEUE.task_done()
+
+_TTS_QUEUE = __import__('queue').Queue()
+__import__('threading').Thread(target=_tts_worker, daemon=True).start()
 
 def speak_and_cleanup(text, lang):
     pass  # No local playback anymore
@@ -414,11 +444,11 @@ DEFAULT_GIFT_DISPLAY_DURATION = 5000  # ms
 # ─── AUTO REPLY (AI Chat) SETTINGS ──────────────────────────
 auto_reply_settings = {
     "enabled": False,
-    "idle_timeout_sec": 5,
-    "riddle_interval_sec": 5,
-    "max_words": 5,
+    "idle_timeout_sec": 60,
+    "riddle_interval_sec": 10,
+    "max_words": 8,
     "reply_style": "funny",
-    "reply_display_sec": 7,
+    "reply_display_sec": 9,
     # MiniMax LLM config (runtime-configurable via /api/llm/config)
     "llm_enabled": False,
     "llm_api_key": "",
@@ -479,6 +509,33 @@ def _load_runtime_state():
         print(f"[AUTOSAVE]   tiktok room = {runtime_state.get('tiktok_room_id', '')[:20]}")
     except Exception as e:
         print(f"[AUTOSAVE] Failed to load runtime state: {e}")
+
+
+def _save_to_env_file(env_path, keys_to_set):
+    """Helper: update or add keys in an env file."""
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            env_lines = f.readlines()
+    keys_found = set()
+    new_lines = []
+    for line in env_lines:
+        stripped = line.strip()
+        matched = False
+        for key in keys_to_set:
+            if stripped.startswith(f"{key}="):
+                new_lines.append(f"{key}={keys_to_set[key]}\n")
+                keys_found.add(key)
+                matched = True
+                break
+        if not matched:
+            new_lines.append(line)
+    for key, val in keys_to_set.items():
+        if key not in keys_found:
+            new_lines.append(f"{key}={val}\n")
+    os.makedirs(os.path.dirname(env_path), exist_ok=True)
+    with open(env_path, "w") as f:
+        f.writelines(new_lines)
 
 
 def _save_runtime_state():
@@ -593,6 +650,30 @@ RIDDLES = [
     {"q": "Kapan manusia bicara tanpa mulut?", "a": "Chat"},
     {"q": "Kenapa mobil gak pernah mager?", "a": "Karena ban rotate"},
     {"q": "Jambu apa yang bisa terbang?", "a": "Jambon"},
+    # Tambahan baru: lucu, modern, ga ngebosenin
+    {"q": "Aplikasi apa yang bikin orang lupa waktu?", "a": "TikTok"},
+    {"q": "WiFi apa yang paling ditunggu?", "a": "WiFi tetangga"},
+    {"q": "Kenapa HP sering jatuh?", "a": "Karena ga punya pegangan"},
+    {"q": "Apa yang makin ditunggu makin ga datang?", "a": "Promo"},
+    {"q": "Kucing apa yang paling kaya?", "a": "Kucing viral"},
+    {"q": "Apa bedanya kamu dan WiFi?", "a": "WiFi ada passwordnya"},
+    {"q": "Makanan apa yang paling jujur?", "a": "Kerupuk"},
+    {"q": "Kenapa kulkas ga pernah bohong?", "a": "Karena selalu terbuka"},
+    {"q": "Apa yang makin malam makin rame?", "a": "Grup WA"},
+    {"q": "Sayur apa yang paling galau?", "a": "Kol-ling"},
+    {"q": "HP apa yang ga pernah lowbat?", "a": "HP tua Nokia"},
+    {"q": "Apa yang bikin orang paling bahagia?", "a": "WiFi gratis"},
+    {"q": "Kenapa gorengan selalu laku?", "a": "Karena ga ada yang nolak"},
+    {"q": "Apa bedanya kamu dan charger?", "a": "Charger bikin hidup"},
+    {"q": "Minuman apa yang paling bijak?", "a": "Teh tarik"},
+    {"q": "Kenapa ATM ga pernah capek?", "a": "Karena selalu standing"},
+    {"q": "Apa yang makin dibagi makin banyak?", "a": "Gosip"},
+    {"q": "Hewan apa yang paling update?", "a": "Kuda-kudaan"},
+    {"q": "Apa yang bikin orang paling sabar?", "a": "Loading"},
+    {"q": "Sayur apa yang paling romantis?", "a": "Bayam (bayangin kamu)"},
+    {"q": "Kenapa laptop ga pernah masuk angin?", "a": "Karena ada kipas"},
+    {"q": "Apa yang makin dicari makin ga ketemu?", "a": "Remote TV"},
+    {"q": "Buah apa yang paling sering ditagih?", "a": "Pisang (piutang)"},
 ]
 
 # ─── CTA / SARAN KOMENTAR ─────────────────────────────────────
@@ -621,7 +702,9 @@ CTAS = [
 
 # Auto reply internal state
 auto_reply_state = {
-    "comment_queue": [],        # list of (username, comment) pending processing
+    "comment_queue": [],        # list of (username, comment) — max 12, drop oldest
+    "gift_queue": [],           # list of gift_data dicts — max 30, drop oldest
+    "riddle_queue": [],         # pre-generated LLM riddles — use first, refill in background
     "last_comment_time": 0,     # timestamp of last comment
     "current_riddle": None,     # {"q": ..., "a": ..., "ask_time": ...}
     "riddle_timer": None,       # threading.Timer for next riddle action
@@ -747,7 +830,7 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
         if temperature is not None:
             payload["temperature"] = temperature
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
         # Don't raise — let the caller log the body
         if resp.status_code != 200:
             print(f"[LLM:{provider_name}] HTTP {resp.status_code}: {resp.text[:200]}")
@@ -779,9 +862,12 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
                 reasoning = message.get("reasoning_content", "")
                 if reasoning:
                     print(f"[LLM:{provider_name}] Content empty, using reasoning_content")
-                    # reasoning_content is the model's thinking, not the final reply
-                    # but it's better than nothing
-                    return reasoning.strip()[:100] or None
+                    # reasoning_content is the model's thinking — extract JSON if present
+                    import re as _re
+                    json_match = _re.search(r'\{[^}]+\}', reasoning, _re.DOTALL)
+                    if json_match:
+                        return json_match.group(0).strip()
+                    return reasoning.strip()[:200] or None
             return text.strip() or None
     except Exception as e:
         print(f"[LLM:{provider_name}] Call failed: {e}")
@@ -1141,7 +1227,7 @@ def gen_auto_reply(username, comment):
             prompt = _rtk_build_prompt(comment, username)
             # Use full messages + system for stricter instruction following
             messages, system_p = _rtk_build_messages(comment, username)
-            reply = call_minimax(prompt, max_words=5, messages=messages, system=system_p)
+            reply = call_minimax(prompt, max_words=8, messages=messages, system=system_p)
             if reply:
                 cleaned = _remove_emoji(reply)
                 # Update cache with the new reply
@@ -1189,78 +1275,125 @@ def gen_auto_reply(username, comment):
     else:
         replies = FUNNY_REPLIES
 
-    reply = random.choice(replies)
+    # Anti-repeat: avoid the same reply as last time (per user)
+    last_reply = auto_reply_state.get("_last_reply_per_user", {}).get((username or "").lower())
+    pool = [r for r in replies if r != last_reply] if len(replies) > 1 else replies
+    if not pool:
+        pool = replies
+    reply = random.choice(pool)
+    auto_reply_state.setdefault("_last_reply_per_user", {})[(username or "").lower()] = reply
     # Remove any stray emoji (static pool already clean but defensive)
     reply = _remove_emoji(reply)
-    # Make sure max 5 words
+    # Make sure max 8 words
     reply_words = reply.split()
-    if len(reply_words) > 5:
-        reply = " ".join(reply_words[:5])
+    if len(reply_words) > 8:
+        reply = " ".join(reply_words[:8])
     return reply
 
 
 def gen_riddle():
-    """Generate a riddle — uses MiniMax LLM if configured, else picks from static pool.
+    """Generate a riddle — uses pre-generated LLM queue first, falls back to static pool.
 
-    RTK also applies here: rate-limit LLM riddle generation to once per 5 min
-    (configurable). Other riddle cycles use the static pool — saves 99% of
-    LLM riddle tokens while keeping variety.
+    Background thread keeps riddle_queue filled with LLM riddles.
+    gen_riddle() pops from queue first; if empty, uses static + triggers refill.
     """
-    rtk_on = auto_reply_settings.get("rtk_enabled", True)
-    rtk_riddle_gap = 300  # 5 min
-    if rtk_on:
-        now = time.time()
-        last = auto_reply_state.get("rtk_last_riddle_llm_ts", 0)
-        if now - last < rtk_riddle_gap:
-            # Throttled — use static pool only
-            r = random.choice(RIDDLES)
-            return {"q": r["q"], "a": r["a"], "ask_time": now, "fallback": True}
+    recent_riddles = auto_reply_state.get("_recent_riddles", [])
 
+    def _pick_static_riddle():
+        available = [r for r in RIDDLES if r["q"] not in recent_riddles]
+        if not available:
+            available = RIDDLES
+        return random.choice(available)
+
+    # Try riddle_queue first (pre-generated LLM riddles)
+    riddle_queue = auto_reply_state.get("riddle_queue", [])
+    if riddle_queue:
+        r = riddle_queue.pop(0)
+        recent_riddles.append(r["q"])
+        if len(recent_riddles) > 5:
+            recent_riddles = recent_riddles[-5:]
+        auto_reply_state["_recent_riddles"] = recent_riddles
+        # Trigger background refill if queue running low
+        if len(riddle_queue) < 2:
+            threading.Thread(target=_refill_riddle_queue, daemon=True).start()
+        return {"q": r["q"], "a": r["a"], "ask_time": time.time()}
+
+    # Queue empty — use static + trigger refill
     if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
-        # RTK: compact riddle prompt
-        if rtk_on and auto_reply_settings.get("rtk_short_prompts", True):
-            prompt = (
-                "Buat tebak-tebakan singkat (max 15 kata soal, 7 kata jawaban, no emoji, sopan, lucu). "
-                'Format JSON: {"q": "...", "a": "..."}'
-            )
-            mt = 40 if auto_reply_settings.get("rtk_reduce_max_tokens") else 60
-        else:
-            prompt = (
-                "Buatin tebak-tebakan lucu dalam Bahasa Indonesia yang FRIENDLY dan RAMAH. "
-                "Semua jawaban harus SOPAN, gak boleh vulgar atau gak sopan. "
-                "Pertanyaan max 10 kata, jawaban max 7 kata. "
-                "Tidak pakai emoji sama sekali. Contoh: {\"q\": \"Benda apa yang kalau dipotong jadi panjang?\", \"a\": \"Waktu\"}"
-            )
-            mt = 60
-        try:
-            raw = _llm_request(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=mt,
-                temperature=0.8,
-            )
-            if not raw:
-                raise ValueError("Empty LLM response")
-            parsed = json.loads(raw.strip().strip("```json").strip("```").strip())
-            q = _remove_emoji(parsed.get("q", "").strip())
-            a = _remove_emoji(parsed.get("a", "").strip())
-            q_words = q.split()
-            if len(q_words) > 15:
-                q = " ".join(q_words[:15])
-            a_words = a.split()
-            if len(a_words) > 7:
-                a = " ".join(a_words[:7])
-            if q and a:
-                # Record LLM call for the token bucket
-                with _RTK_LOCK:
-                    auto_reply_state["rtk_last_riddle_llm_ts"] = time.time()
-                    auto_reply_state["rtk_llm_call_timestamps"].append(time.time())
-                    auto_reply_state["rtk_stats"]["llm_calls"] += 1
-                return {"q": q, "a": a, "ask_time": time.time()}
-        except Exception:
-            pass
-    # Fallback to static pool
-    r = random.choice(RIDDLES)
+        threading.Thread(target=_refill_riddle_queue, daemon=True).start()
+
+    r = _pick_static_riddle()
+    recent_riddles.append(r["q"])
+    if len(recent_riddles) > 5:
+        recent_riddles = recent_riddles[-5:]
+    auto_reply_state["_recent_riddles"] = recent_riddles
     return {"q": r["q"], "a": r["a"], "ask_time": time.time(), "fallback": True}
+
+
+def _refill_riddle_queue():
+    """Background: generate 3 LLM riddles and add to queue."""
+    if not auto_reply_settings.get("llm_enabled") or not auto_reply_settings.get("llm_api_key"):
+        return
+    prompt = (
+        "Buat 3 tebak-tebakan lucu berbeda dalam Bahasa Indonesia. "
+        "Sopan, no emoji, max 15 kata soal, max 7 kata jawaban. "
+        'Format JSON array: [{"q":"...","a":"..."},{"q":"...","a":"..."},{"q":"...","a":"..."}]'
+    )
+    try:
+        raw = _llm_request(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.8,
+            model_override="mimo-v2.5-flash",
+        )
+        if not raw:
+            return
+        # Debug: log raw response
+        log("DEBUG", "AUTO_REPLY", f"Riddle LLM raw: {raw[:200]}")
+        # Try to parse — might be JSON array or contain JSON in text
+        cleaned = raw.strip().strip("```json").strip("```").strip()
+        # Extract JSON array from text
+        import re as _re
+        json_match = _re.search(r'\[.*\]', cleaned, _re.DOTALL)
+        if json_match:
+            cleaned = json_match.group(0)
+        parsed = json.loads(cleaned.split("\n")[0])
+        if isinstance(parsed, list):
+            for item in parsed[:3]:
+                q = _remove_emoji(item.get("q", "").strip())
+                a = _remove_emoji(item.get("a", "").strip())
+                if q and a:
+                    auto_reply_state["riddle_queue"].append({"q": q, "a": a})
+        log("EVENT", "AUTO_REPLY", f"Riddle queue refilled: {len(auto_reply_state['riddle_queue'])} riddles")
+    except Exception as e:
+        log("WARN", "AUTO_REPLY", f"Riddle queue refill failed: {e}")
+
+
+def _process_gift_display(gift_data):
+    """Process a single gift display — emit to overlay + TTS + lock for display duration."""
+    auto_reply_state["reply_locked"] = True
+    auto_reply_state["reply_start_time"] = time.time()
+    # Safety watchdog: force release after 12s (gift anim = 10s)
+    def _gift_watchdog():
+        if auto_reply_state.get("reply_locked"):
+            auto_reply_state["reply_locked"] = False
+            auto_reply_state["reply_start_time"] = 0
+    watchdog = threading.Timer(12, _gift_watchdog)
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        socketio.emit("gift_display", gift_data)
+        # TTS sinkron dengan display — speak thank you saat display muncul
+        username = gift_data.get("username", "")
+        gift_name = gift_data.get("gift_name", "")
+        speak_async(f"Terima kasih {username} untuk {gift_name} nya!")
+        log("EVENT", "GIFT", f"Gift displayed: {gift_data.get('gift_type')} from @{username}")
+        # Wait for gift animation duration (10s hardcoded in overlay)
+        time.sleep(10)
+    finally:
+        auto_reply_state["reply_locked"] = False
+        auto_reply_state["reply_start_time"] = 0
+        watchdog.cancel()
 
 
 def _auto_reply_loop():
@@ -1269,6 +1402,10 @@ def _auto_reply_loop():
 
     while auto_reply_state["running"]:
         now = time.time()
+
+        # Skip comment processing if TikTok not connected
+        tiktok_connected = state.get("tiktok_status") == "CONNECTED"
+
         has_comment = len(auto_reply_state["comment_queue"]) > 0
 
         # Skip processing if riddle cycle is active (ASK→ANS→CTA)
@@ -1281,14 +1418,40 @@ def _auto_reply_loop():
                 if elapsed >= display_sec:
                     auto_reply_state["reply_locked"] = False
                 else:
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                     continue
             else:
-                time.sleep(0.5)
+                # riddle_locked but no reply in progress — safety release after 30s
+                if time.time() - auto_reply_state.get("riddle_lock_time", 0) > 30:
+                    log("WARN", "AUTO_REPLY", "riddle_locked stuck >30s, force releasing")
+                    auto_reply_state["riddle_locked"] = False
+                time.sleep(0.3)
                 continue
 
+        # Interleaved display: alternate between gift and comment
+        has_gift = len(auto_reply_state.get("gift_queue", [])) > 0
+        has_comment = len(auto_reply_state["comment_queue"]) > 0
+        last_type = auto_reply_state.get("_last_display_type", "comment")
+
+        if has_gift and has_comment:
+            # Alternate: if last was gift, show comment; if last was comment, show gift
+            if last_type == "gift":
+                # Show comment (fall through)
+                pass
+            else:
+                # Show gift
+                _process_gift_display(auto_reply_state["gift_queue"].pop(0))
+                auto_reply_state["_last_display_type"] = "gift"
+                time.sleep(0.3)
+                continue
+        elif has_gift:
+            # Only gifts, no comments — show gift
+            _process_gift_display(auto_reply_state["gift_queue"].pop(0))
+            auto_reply_state["_last_display_type"] = "gift"
+            time.sleep(0.3)
+            continue
+
         if has_comment:
-            # Lock BEFORE rendering — no other display can start during text_to_ascii
             auto_reply_state["reply_locked"] = True
             auto_reply_state["reply_start_time"] = time.time()
 
@@ -1324,7 +1487,14 @@ def _auto_reply_loop():
             if auto_reply_state["riddle_timer"]:
                 auto_reply_state["riddle_timer"].cancel()
 
-            # Schedule next riddle after reply display duration
+            # Fire riddle every 10 comments (not just when idle)
+            auto_reply_state["_comment_since_riddle"] = auto_reply_state.get("_comment_since_riddle", 0) + 1
+            if auto_reply_state["_comment_since_riddle"] >= 10:
+                auto_reply_state["_comment_since_riddle"] = 0
+                log("EVENT", "AUTO_REPLY", "10 comments reached — firing riddle")
+                threading.Timer(0.5, _fire_riddle_ask).start()
+
+            # Schedule next riddle after reply display duration (idle fallback)
             idle_sec = auto_reply_settings.get("reply_display_sec", 7)
             auto_reply_state["riddle_timer"] = threading.Timer(
                 idle_sec, _fire_riddle_ask
@@ -1332,10 +1502,24 @@ def _auto_reply_loop():
             auto_reply_state["riddle_timer"].start()
 
             log("EVENT", "AUTO_REPLY", f"@{username}: {comment} → {reply}")
+            auto_reply_state["_last_display_type"] = "comment"
 
             # Keep lock held for entire display_sec — loop will release it after elapsed
-            time.sleep(auto_reply_settings.get("reply_display_sec", 7))
-            auto_reply_state["reply_locked"] = False
+            display_sec = auto_reply_settings.get("reply_display_sec", 9)
+            # Safety watchdog: force release after display_sec + 3s buffer
+            def _comment_watchdog():
+                if auto_reply_state.get("reply_locked"):
+                    auto_reply_state["reply_locked"] = False
+                    auto_reply_state["reply_start_time"] = 0
+            watchdog = threading.Timer(display_sec + 3, _comment_watchdog)
+            watchdog.daemon = True
+            watchdog.start()
+            try:
+                time.sleep(display_sec)
+            finally:
+                auto_reply_state["reply_locked"] = False
+                auto_reply_state["reply_start_time"] = 0
+                watchdog.cancel()
         else:
             # No comments — check if we should fire a riddle
             # (riddle timer handles this via _fire_riddle_ask)
@@ -1357,6 +1541,7 @@ def _fire_riddle_ask():
 
     # Lock riddle cycle — queue comments until CTA done
     auto_reply_state["riddle_locked"] = True
+    auto_reply_state["riddle_lock_time"] = time.time()
 
     r = gen_riddle()
     auto_reply_state["current_riddle"] = r
@@ -1435,11 +1620,7 @@ def _fire_cta():
     if not auto_reply_settings["enabled"]:
         return
 
-    # Lock reply processing during CTA display (5s) — not during idle wait
-    auto_reply_state["reply_locked"] = True
-    # Release reply_lock right before next riddle fires (end of idle period)
-    threading.Timer(auto_reply_settings["idle_timeout_sec"], lambda: auto_reply_state.update({"reply_locked": False})).start()
-
+    # CTA display — don't lock reply processing (comments should still work)
     cta_text = random.choice(CTAS)
     ascii_cta = text_to_ascii(cta_text, font=settings.get("font", "ansi_shadow"))
     state["seq"]["cta"] = state["seq"].get("cta", 0) + 1
@@ -1516,12 +1697,9 @@ settings = {
     "gift_display_duration": DEFAULT_GIFT_DISPLAY_DURATION,
     "gift_enabled": True,
     # Screenshot settings
-    "ss_mode": "auto",
+    "ss_mode": "manual",
     "ss_ratio": "square",
     "ss_flash": True,
-    # Record settings
-    "rec_duration": 5,
-    "rec_mode": "auto",
 }
 
 FONT_POOL = [
@@ -1540,25 +1718,69 @@ def on_settings_update(data):
 
     # Kalau font berubah via scroll rotate, re-render konten aktif
     if "font" in data and state.get("active_display") and data.get("auto_font"):
-        content_type = state["active_display"]["type"]
-        original_text = state["active_display"].get("original_text", "")
-
-        if original_text and content_type == "text":
-            new_content = text_to_ascii(original_text, font=settings["font"])
-            state["active_display"]["content"] = new_content
+        content_type = state["active_display"].get("type", "text")
+        content_text = state["active_display"].get("content", "")
+        if content_text:
             socketio.emit("display_update", {
-                "content": new_content,
+                "content": content_text,
                 "type": content_type,
                 "source": "manual",
                 "font": settings["font"]
             })
 
     socketio.emit("settings_update", settings)
+    _save_runtime_state()  # persist gradient/font/color settings
     log("INFO", "SETTINGS", f"Updated: {list(data.keys())}")
 
 @app.route("/api/settings", methods=["GET"])
 def api_settings_get():
     return jsonify({"settings": settings})
+
+@app.route("/api/env", methods=["GET"])
+def api_env_get():
+    """Read .env file contents (masked keys)"""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return jsonify({"ok": True, "content": "", "path": env_path})
+    with open(env_path, "r") as f:
+        content = f.read()
+    # Mask sensitive values
+    import re
+    masked = re.sub(r'(API_KEY|TOKEN|SECRET|PASSWORD)\s*=\s*(.+)', lambda m: f'{m.group(1)}=***', content, flags=re.IGNORECASE)
+    return jsonify({"ok": True, "content": masked, "path": env_path})
+
+@app.route("/api/env/update", methods=["POST"])
+def api_env_update():
+    """Update .env file — accepts key=value pairs"""
+    data = request.get_json() or {}
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    # Read existing
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            lines = f.readlines()
+    # Update or add keys
+    updated_keys = []
+    for key, value in data.items():
+        key = key.strip().upper()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{key}="):
+                lines[i] = f"{key}={value}\n"
+                found = True
+                updated_keys.append(key)
+                break
+        if not found:
+            lines.append(f"{key}={value}\n")
+            updated_keys.append(key)
+    # Write back
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+    # Reload dotenv
+    from dotenv import load_dotenv
+    load_dotenv(env_path, override=True)
+    log("INFO", "ENV", f"Updated: {updated_keys}")
+    return jsonify({"ok": True, "updated": updated_keys})
 
 @app.route("/api/settings/update", methods=["POST"])
 def api_settings_update():
@@ -1689,16 +1911,77 @@ def api_tiktok_disconnect():
     _save_runtime_state()
     state["tiktok_status"] = "DISCONNECTED"
     socketio.emit("status_update", {"tiktok_status": "DISCONNECTED"})
-    log("INFO", "TIKTOK", "Disconnected")
+    # Auto clear queues on disconnect (except riddle state)
+    auto_reply_state["comment_queue"] = []
+    auto_reply_state["gift_queue"] = []
+    auto_reply_state["_recent_comment_texts"] = {}
+    auto_reply_state["_user_last_reply"] = {}
+    auto_reply_state["_last_display_type"] = "comment"
+    auto_reply_state["reply_locked"] = False
+    auto_reply_state["reply_start_time"] = 0
+    log("INFO", "TIKTOK", "Disconnected — queues cleared")
     return jsonify({"ok": True})
+
+@app.route("/api/clear_cache", methods=["POST"])
+def api_clear_cache():
+    """Manually clear all caches and queues"""
+    auto_reply_state["comment_queue"] = []
+    auto_reply_state["gift_queue"] = []
+    auto_reply_state["_recent_comment_texts"] = {}
+    auto_reply_state["_user_last_reply"] = {}
+    auto_reply_state["_last_reply_per_user"] = {}
+    auto_reply_state["_recent_riddles"] = []
+    auto_reply_state["_comment_since_riddle"] = 0
+    auto_reply_state["_last_display_type"] = "comment"
+    auto_reply_state["reply_locked"] = False
+    auto_reply_state["reply_start_time"] = 0
+    auto_reply_state["riddle_locked"] = False
+    log("INFO", "CACHE", "All caches and queues cleared manually")
+    return jsonify({"ok": True, "message": "Cache dan queue dibersihkan"})
+
+@app.route("/api/clear_queue", methods=["POST"])
+def api_clear_queue():
+    """Manually clear comment and gift queues only"""
+    auto_reply_state["comment_queue"] = []
+    auto_reply_state["gift_queue"] = []
+    auto_reply_state["reply_locked"] = False
+    auto_reply_state["reply_start_time"] = 0
+    log("INFO", "QUEUE", "Comment and gift queues cleared manually")
+    return jsonify({"ok": True, "comment_queue": 0, "gift_queue": 0})
 
 @app.route("/api/tiktok/simulate", methods=["POST"])
 def api_tiktok_simulate():
-    """For testing — simulate a single comment"""
+    """For testing — simulate a single comment or gift"""
     username = request.json.get("username", "TestUser")
     comment = request.json.get("comment", "Halo dari test!")
+    gift = request.json.get("gift", "")
+    if gift:
+        # Simulate gift — queue directly
+        import pyfiglet
+        auto_reply_state.setdefault("gift_queue", [])
+        gift_key = gift.lower().replace(" ", "_")
+        if gift_key not in GIFT_ARTS:
+            for k in GIFT_ARTS:
+                if k in gift_key or gift_key in k:
+                    gift_key = k
+                    break
+            else:
+                gift_key = "star"
+        gift_obj = GIFT_ARTS.get(gift_key, GIFT_ARTS["star"])
+        auto_reply_state["gift_queue"].append({
+            "username": username,
+            "username_ascii": pyfiglet.Figlet(font="ansi_shadow", width=200).renderText(username),
+            "gift_type": gift_key,
+            "gift_art": normalize_gift_art(gift_obj["art"]),
+            "gift_emoji": gift_obj["emoji"],
+            "gift_name": gift,
+            "gift_message_lines": [f"Terima kasih @{username}!"],
+            "sound": settings.get("gift_sound", "on"),
+        })
+        log("EVENT", "SIMULATE", f"Gift queued: {gift_key} from @{username}")
+        return jsonify({"ok": True, "type": "gift", "username": username, "gift": gift})
     handle_tiktok_comment(username, comment)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "type": "comment", "username": username, "comment": comment})
 
 @app.route("/api/tiktok/simulate_batch", methods=["POST"])
 def api_tiktok_simulate_batch():
@@ -1823,6 +2106,10 @@ def handle_tiktok_comment(username, comment):
     })
     # Queue for auto-reply processing
     if auto_reply_settings["enabled"]:
+        # Cap comment queue to 12 — drop oldest to prevent lag
+        MAX_COMMENT_QUEUE = 12
+        while len(auto_reply_state["comment_queue"]) >= MAX_COMMENT_QUEUE:
+            auto_reply_state["comment_queue"].pop(0)
         auto_reply_state["comment_queue"].append((username, comment))
 
 # ─── TIKTOK CONNECTOR ─────────────────────────────────────
@@ -1833,7 +2120,52 @@ def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
     global tiktok_conn
     from tiktok.connector import TikTokConnector
 
+    # Clear any stale comments from previous session (prevents re-answering old ones)
+    cleared = len(auto_reply_state.get("comment_queue", []))
+    auto_reply_state["comment_queue"] = []
+    # Also clear anti-spam trackers — fresh session
+    auto_reply_state["_recent_comment_texts"] = {}
+    auto_reply_state["_user_last_reply"] = {}
+    auto_reply_state["_user_reply_count"] = {}
+    auto_reply_state["_session_start"] = time.time()
+    if cleared:
+        log("INFO", "TIKTOK", f"Cleared {cleared} stale comments from previous session")
+    log("INFO", "TIKTOK", f"Anti-spam trackers reset for fresh session on {room_id}")
+
+    # Initialize anti-spam tracking in state if not present
+    auto_reply_state.setdefault("_recent_comment_texts", {})  # {text_lower: ts}
+    auto_reply_state.setdefault("_user_last_reply", {})      # {user_lower: ts}
+    auto_reply_state.setdefault("_session_start", time.time())
+
     def on_comment(username, comment):
+        # === ANTI-SPAM: skip old/repeated comments ===
+        now = time.time()
+        text_norm = comment.strip().lower()
+        uname_norm = (username or "").strip().lower()
+        comment_ts = time.time()  # No timestamp from TikTok event; use receive time
+
+        # 1) Skip identical text from anyone within 30s (true duplicate)
+        last_text_ts = auto_reply_state["_recent_comment_texts"].get(text_norm, 0)
+        if text_norm and (now - last_text_ts) < 30:
+            log("DEBUG", "TIKTOK", f"SKIP dup comment [{username}]: {comment[:30]}")
+            return
+
+        # 2) Limit 3 replies per user per 5 minutes (300s)
+        user_last = auto_reply_state["_user_last_reply"].get(uname_norm, 0)
+        user_count = auto_reply_state.setdefault("_user_reply_count", {})
+        if (now - user_last) > 300:
+            # Reset window
+            user_count[uname_norm] = 0
+        if user_count.get(uname_norm, 0) >= 3:
+            log("DEBUG", "TIKTOK", f"SKIP spam [{username}] (3+ replies in 5min)")
+            return
+
+        # 3) Skip very short (emoji, "ok", single word <3 char)
+        if len(text_norm) < 3:
+            log("DEBUG", "TIKTOK", f"SKIP too-short [{username}]: {comment[:20]}")
+            return
+
+        # Record this comment
         state["event_count"] += 1
         log("EVENT", "TIKTOK", f"Comment: @{username}: {comment}")
         socketio.emit("tiktok_comment", {
@@ -1842,40 +2174,77 @@ def connect_tiktok(room_id, web_proxy=None, ws_proxy=None):
             "timestamp": datetime.now().isoformat(),
             "event_num": state["event_count"]
         })
+        # Queue for auto-reply processing (LLM/static)
+        if auto_reply_settings["enabled"]:
+            # Cap comment queue to 12 — drop oldest to prevent lag
+            MAX_COMMENT_QUEUE = 12
+            while len(auto_reply_state["comment_queue"]) >= MAX_COMMENT_QUEUE:
+                auto_reply_state["comment_queue"].pop(0)
+            auto_reply_state["comment_queue"].append((username, comment))
+            # Update trackers
+            auto_reply_state["_recent_comment_texts"][text_norm] = now
+            auto_reply_state["_user_last_reply"][uname_norm] = now
+            user_count[uname_norm] = user_count.get(uname_norm, 0) + 1
 
     def on_gift(username, gift_name):
-        log("EVENT", "TIKTOK", f"Gift: @{username} sent {gift_name}")
-        # Trigger gift animation if enabled
-        if settings.get("gift_enabled", True):
-            # Normalize gift name to key
-            gift_key = gift_name.lower().replace(" ", "_").replace("-", "_")
-            if gift_key not in GIFT_ARTS:
-                # Try partial match
-                for k in GIFT_ARTS:
-                    if k in gift_key or gift_key in k:
-                        gift_key = k
-                        break
-                else:
-                    gift_key = "star"  # fallback
-            gift = GIFT_ARTS[gift_key]
-            gift_msg_lines = GIFT_MESSAGES.get(gift_key, GIFT_MESSAGES["star"])
-            # Substitute placeholders in each line
-            message_lines = []
-            for line in gift_msg_lines:
-                message_lines.append(line.replace("@Kiozhu", f"@{username}"))
-            socketio.emit("gift_display", {
-                "username": username,
-                "username_ascii": pyfiglet.Figlet(font="ansi_shadow", width=200).renderText(username),
-                "gift_type": gift_key,
-                "gift_art": normalize_gift_art(gift["art"]),
-                "gift_emoji": gift["emoji"],
-                "gift_name": gift["title"],
-                "gift_message_lines": message_lines,
-                # NOTE: all timing hardcoded in overlay.html — 10s total
-                "sound": settings["gift_sound"] if settings["gift_enabled"] else "off",
-            })
-        else:
-            socketio.emit("tiktok_gift", {"username": username, "gift": gift_name})
+        try:
+            log("EVENT", "TIKTOK", f"Gift: @{username} sent {gift_name}")
+
+            # Anti-spam: vary who gets noticed (not same person over and over)
+            now = time.time()
+            last_gift_user = auto_reply_state.get("_last_gift_user", "")
+            last_gift_time = auto_reply_state.get("_last_gift_time", 0)
+            # Allow same user only if 30s passed (different user = 3s cooldown)
+            if username == last_gift_user and now - last_gift_time < 30:
+                log("DEBUG", "GIFT", f"SKIP gift (same user <30s): @{username} {gift_name}")
+                return
+            if username != last_gift_user and now - last_gift_time < 3:
+                log("DEBUG", "GIFT", f"SKIP gift (3s cooldown): @{username} {gift_name}")
+                return
+            auto_reply_state["_last_gift_time"] = now
+            auto_reply_state["_last_gift_user"] = username
+
+            # Trigger gift animation if enabled
+            if settings.get("gift_enabled", True):
+                # Normalize gift name to key
+                gift_key = gift_name.lower().replace(" ", "_").replace("-", "_")
+                if gift_key not in GIFT_ARTS:
+                    # Try partial match
+                    for k in GIFT_ARTS:
+                        if k in gift_key or gift_key in k:
+                            gift_key = k
+                            break
+                    else:
+                        gift_key = "star"  # fallback
+                gift = GIFT_ARTS[gift_key]
+                gift_msg_lines = GIFT_MESSAGES.get(gift_key, GIFT_MESSAGES["star"])
+                # Substitute placeholders in each line
+                message_lines = []
+                for line in gift_msg_lines:
+                    message_lines.append(line.replace("@Kiozhu", f"@{username}"))
+
+                # Queue gift for interleaved display (alternates with comments)
+                auto_reply_state.setdefault("gift_queue", [])
+                # Cap gift queue to 30 — drop oldest to prevent lag
+                MAX_GIFT_QUEUE = 30
+                while len(auto_reply_state["gift_queue"]) >= MAX_GIFT_QUEUE:
+                    auto_reply_state["gift_queue"].pop(0)
+                gift_data = {
+                    "username": username,
+                    "username_ascii": pyfiglet.Figlet(font="ansi_shadow", width=200).renderText(username),
+                    "gift_type": gift_key,
+                    "gift_art": normalize_gift_art(gift["art"]),
+                    "gift_emoji": gift["emoji"],
+                    "gift_name": gift["title"],
+                    "gift_message_lines": message_lines,
+                    "sound": settings["gift_sound"] if settings["gift_enabled"] else "off",
+                }
+                auto_reply_state["gift_queue"].append(gift_data)
+                log("EVENT", "GIFT", f"Gift queued: {gift_key} from @{username}")
+            else:
+                socketio.emit("tiktok_gift", {"username": username, "gift": gift_name})
+        except Exception as e:
+            log("ERROR", "GIFT", f"Error in on_gift: {e}")
 
     def on_connect(uid, room_id):
         log("INFO", "TIKTOK", f"CONNECTED to @{uid} (room_id={room_id})")
@@ -2210,8 +2579,12 @@ def api_llm_config():
     Users only need to set api_key + model + enabled.
     """
     data = request.get_json() or {}
+    # Preserve existing api_key if not provided in request (so refresh doesn't wipe it)
     api_key = data.get("api_key", "").strip()
-    model = data.get("model", "MiniMax-M2.7").strip()
+    if not api_key and "api_key" not in data:
+        # Key not in payload — keep existing
+        api_key = auto_reply_settings.get("llm_api_key", "").strip()
+    model = data.get("model", auto_reply_settings.get("llm_model", "minimax-m2.7")).strip()
     enabled = bool(data.get("enabled", False))
 
     # Auto-detect base_url from model's provider
@@ -2237,11 +2610,13 @@ def api_llm_config():
         with open(env_path) as f:
             env_lines = f.readlines()
 
+    # Use provider-specific prefix to avoid clobbering other provider keys
+    env_prefix = provider_name.upper()  # "minimax" → "MINIMAX", "xiaomi" → "XIAOMI"
     keys_to_set = {
-        "MINIMAX_API_KEY": api_key,
-        "MINIMAX_BASE_URL": base_url,
-        "MINIMAX_MODEL": model,
-        "MINIMAX_ENABLED": "true" if enabled else "false",
+        f"{env_prefix}_API_KEY": api_key,
+        f"{env_prefix}_BASE_URL": base_url,
+        f"{env_prefix}_MODEL": model,
+        f"{env_prefix}_ENABLED": "true" if enabled else "false",
     }
     keys_found = set()
     new_lines = []
@@ -2261,6 +2636,10 @@ def api_llm_config():
             new_lines.append(f"{key}={val}\n")
     with open(env_path, "w") as f:
         f.writelines(new_lines)
+
+    # Also persist to data/.env.local (survives git, not masked)
+    local_env = os.path.join(os.path.dirname(__file__), "data", ".env.local")
+    _save_to_env_file(local_env, keys_to_set)
 
     # Reload env
     for k, v in keys_to_set.items():
@@ -2455,6 +2834,7 @@ def api_font_rotate():
     log("INFO", "FONT", f"Rotated to: {next_font} (fontsize={settings['fontsize']})")
     return jsonify({"font": next_font, "settings": settings})
 
+
 # ─── STARTUP ───────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5050"))
@@ -2467,7 +2847,23 @@ if __name__ == "__main__":
     init_telegram()
 
     # ─── AUTOSAVE: resume previous state ──────────────────────
-    # 1) Re-enable auto-reply if it was running before
+    # 1) Auto-enable LLM from .env if key exists
+    env_llm_key = os.getenv("XIAOMI_API_KEY", "") or os.getenv("MINIMAX_API_KEY", "")
+    if env_llm_key and not auto_reply_settings.get("llm_api_key"):
+        auto_reply_settings["llm_api_key"] = env_llm_key
+        auto_reply_settings["llm_enabled"] = True
+        log("INFO", "AUTOSAVE", f"LLM auto-enabled from .env (key {len(env_llm_key)} chars)")
+
+    # 2) Auto-enable auto-reply from .env
+    if os.getenv("AUTO_REPLY_ENABLED", "").lower() == "true":
+        auto_reply_settings["enabled"] = True
+        log("INFO", "AUTOSAVE", "Auto-reply auto-enabled from .env")
+
+    # 3) Pre-fill riddle queue from LLM
+    if auto_reply_settings.get("llm_enabled") and auto_reply_settings.get("llm_api_key"):
+        threading.Thread(target=_refill_riddle_queue, daemon=True).start()
+
+    # 3) Re-enable auto-reply if it was running before
     if auto_reply_settings.get("enabled"):
         log("INFO", "AUTOSAVE", "Restoring auto-reply loop from previous session")
         start_auto_reply_loop()
@@ -2475,11 +2871,19 @@ if __name__ == "__main__":
             # Fire first riddle immediately
             threading.Timer(0.1, _fire_riddle_ask).start()
 
-    # 2) Auto-reconnect to last TikTok room (if any)
+    # 4) Auto-reconnect to last TikTok room (if any)
     last_room = runtime_state.get("tiktok_room_id", "")
     if last_room:
         log("INFO", "AUTOSAVE", f"Auto-reconnect to last TikTok room: {last_room}")
         threading.Timer(2.0, lambda: _auto_reconnect_tiktok(last_room)).start()
+    else:
+        # Check .env for TIkTOK_USERNAME
+        env_username = os.getenv("TIKTOK_USERNAME", "")
+        if env_username:
+            log("INFO", "AUTOSAVE", f"Auto-connect from .env TIkTOK_USERNAME: {env_username}")
+            runtime_state["tiktok_room_id"] = env_username
+            _save_runtime_state()
+            threading.Timer(2.0, lambda: _auto_reconnect_tiktok(env_username)).start()
 
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 

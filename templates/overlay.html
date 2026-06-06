@@ -715,21 +715,24 @@ function showDisplay(source, priority, data, renderFn) {
 }
 
 socket.on("riddle_display", (data) => {
-  // riddle_ask: cyan colored display
-  // riddle_answer: gold/yellow colored display
+  // riddle: use gradient from settings
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
   const isAnswer = data.type === "riddle_answer";
   const fallback = data.fallback;
-  const color = fallback ? (isAnswer ? "#FF6B6B" : "#FF4444") : (isAnswer ? "#FFD700" : "#00E5FF");
-  const glow  = fallback ? "#FF0000" : (isAnswer ? "#FF4500" : "#00ff41");
   const label = isAnswer ? "JAWABAN" : "TEBAK TEBAKAN";
-  const aiTag = fallback ? "" : "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;\">[AI]</span>";
-  const staticTag = fallback ? "<span style=\"font-size:0.5rem;opacity:0.7;margin-left:6px;color:#FF6B6B;\">[static]</span>" : "";
-  const html = escapeHtml(data.ascii_content || data.content || "");
-  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const aiTag = fallback ? "" : '<span style="font-size:0.5rem;opacity:0.7;margin-left:6px;">[AI]</span>';
+  const staticTag = fallback ? '<span style="font-size:0.5rem;opacity:0.7;margin-left:6px;color:#FF6B6B;">[static]</span>' : "";
+  const rawContent = data.ascii_content || data.content || "";
+  const lines = rawContent.split('\n');
+  let html = escapeHtml(rawContent);
+  if (window.COLOR_MODE === 'gradient') {
+    html = applyGradientToText(rawContent, lines.length);
+  }
+  const labelColor = window.COLOR_MODE === 'gradient' ? rgbStr(isAnswer ? GRAD_MID : GRAD_TOP) : (isAnswer ? "#FFD700" : "#00E5FF");
+  const styled = `<div style="font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
   const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
-      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}${aiTag}${staticTag}</div>
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${labelColor};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}${aiTag}${staticTag}</div>
       ${styled}
     </div>`;
   showDisplay("riddle", 2, data, () => {
@@ -754,16 +757,19 @@ socket.on("riddle_display", (data) => {
 });
 
 socket.on("cta_display", (data) => {
-  // CTA: pink/magenta glowing display (lowest priority — preempted by anything)
+  // CTA: use gradient from settings (not hardcoded pink)
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
-  const color = "#FF1493";
-  const glow = "#FF1493";
-  const label = "HEY SOB";
-  const html = escapeHtml(data.ascii_content || data.content || "");
-  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const rawContent = data.ascii_content || data.content || "";
+  const lines = rawContent.split('\n');
+  let html = escapeHtml(rawContent);
+  if (window.COLOR_MODE === 'gradient') {
+    html = applyGradientToText(rawContent, lines.length);
+  }
+  const labelColor = window.COLOR_MODE === 'gradient' ? rgbStr(GRAD_BOT) : "#FF1493";
+  const styled = `<div style="font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
   const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
-      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">${label}</div>
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${labelColor};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">CTA</div>
       ${styled}
     </div>`;
   showDisplay("cta", 1, data, () => {
@@ -788,20 +794,27 @@ socket.on("cta_display", (data) => {
 });
 
 socket.on("auto_reply_display", (data) => {
-  // Auto-reply: bright green — HIGHEST priority, preempts everything
+  // Auto-reply: use gradient from settings (not hardcoded green)
   const box = document.getElementById("manual-box");
   const giftBox = document.getElementById("gift-box");
-  const color = "#39FF14"; // neon green
-  const glow = "#00ff41";
-  const html = escapeHtml(data.ascii_content || data.content || "");
-  const styled = `<div style="color:${color};text-shadow:0 0 15px ${glow},0 0 30px ${glow};font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  const rawContent = data.ascii_content || data.content || "";
+  const lines = rawContent.split('\n');
+  let html = escapeHtml(rawContent);
+  // Apply gradient if COLOR_MODE is gradient
+  if (window.COLOR_MODE === 'gradient') {
+    html = applyGradientToText(rawContent, lines.length);
+  }
+  const styled = `<div style="font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;max-width:100vw;overflow-x:auto;">${html}</div>`;
+  // Label color from gradient top
+  const labelColor = window.COLOR_MODE === 'gradient' ? rgbStr(GRAD_TOP) : "#39FF14";
   const content = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:60vh;">
-      <div style="font-size:0.6rem;letter-spacing:4px;color:${color};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">AUTO REPLY</div>
+      <div style="font-size:0.6rem;letter-spacing:4px;color:${labelColor};opacity:0.6;margin-bottom:12px;text-transform:uppercase;">AUTO REPLY</div>
       ${styled}
     </div>`;
   const displayMs = (data.display_sec || 7) * 1000;
   showDisplay("auto_reply", 4, data, () => {
-    if (giftBox) giftBox.style.display = "none";
+    // Don't hide gift-box if gift animation is playing
+    if (giftBox && !_giftActive) giftBox.style.display = "none";
     if (box) {
       box.style.display = "flex";
       box.classList.add("active");
@@ -814,8 +827,20 @@ socket.on("auto_reply_display", (data) => {
         }
         const b = document.getElementById("manual-box");
         if (b) {
-          b.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
-          b.classList.remove("active");
+          // Restore last manual display content with gradient (if available)
+          const lastContent = window._lastManualContent;
+          if (lastContent) {
+            const lines = lastContent.split('\n');
+            let restoredHtml = escapeHtml(lastContent);
+            if (window.COLOR_MODE === 'gradient') {
+              restoredHtml = applyGradientToText(lastContent, lines.length);
+            }
+            b.innerHTML = `<pre style="margin:0;font-family:'Courier New',monospace;white-space:pre;font-size:clamp(0.5rem,1.2vw,1rem);line-height:1.1;text-align:center;">${restoredHtml}</pre>`;
+            b.classList.add("active");
+          } else {
+            b.innerHTML = '<div class="placeholder loading-dots"><span class="dot dot1">·</span><span class="dot dot2">·</span><span class="dot dot3">·</span></div>';
+            b.classList.remove("active");
+          }
         }
       }, displayMs);
     }
@@ -919,6 +944,8 @@ socket.on("display_update", (data) => {
       if (box) {
         box.innerHTML = contentEl;
         box.classList.add("active");
+        // Store for gradient restore after auto_reply timeout
+        window._lastManualContent = data.content;
       }
     });
   }
@@ -1069,9 +1096,10 @@ function _playGiftAnimation(data, onDone) {
   if (window._giftInterval)  clearInterval(window._giftInterval);
   if (window._giftInterval2) clearInterval(window._giftInterval2);
 
-  // Reset state — hide manual-box, show gift elements
+  // Reset state — show gift-box, hide manual-box
   const manualBox = document.getElementById("manual-box");
   if (manualBox) manualBox.style.display = "none";
+  giftBox.style.display = "flex";
   typingEl.innerHTML = "";
   artArea.style.display = "none";
   artDisplay.innerHTML = "";
@@ -1145,12 +1173,18 @@ function _playGiftAnimation(data, onDone) {
       usernameEl.style.fontFamily = "'Courier New',monospace";
       usernameEl.style.fontSize = "clamp(1.2rem,3.5vw,2.5rem)";
       usernameEl.style.fontWeight = "bold";
-      usernameEl.style.color = "#FFD700";
       usernameEl.style.letterSpacing = "2px";
       usernameEl.style.whiteSpace = "pre";
       usernameEl.style.lineHeight = "1.3";
       usernameEl.style.textAlign = "center";
-      usernameEl.style.textShadow = "0 0 20px #FFD700, 0 0 40px #FF4500, 0 0 60px #FF8C00";
+      // Use gradient if available
+      if (window.COLOR_MODE === 'gradient') {
+        usernameEl.style.color = rgbStr(GRAD_TOP);
+        usernameEl.style.textShadow = `0 0 20px ${rgbStr(GRAD_TOP)}, 0 0 40px ${rgbStr(GRAD_MID)}`;
+      } else {
+        usernameEl.style.color = "#FFD700";
+        usernameEl.style.textShadow = "0 0 20px #FFD700, 0 0 40px #FF4500, 0 0 60px #FF8C00";
+      }
       usernameEl.style.animation = "_uGlitch 0.4s ease-in-out infinite alternate";
       usernameEl.textContent = `terima kasih @${data.username}`;
       window._giftAnimFrame = requestAnimationFrame(animate);
@@ -1163,6 +1197,10 @@ function _playGiftAnimation(data, onDone) {
       usernameEl.style.fontSize = `clamp(${1.2 + fadeProgress * 0.6}rem, ${3.5 + fadeProgress * 1.5}vw, ${2.5 + fadeProgress * 1.5}rem)`;
       usernameEl.style.letterSpacing = `${2 + fadeProgress * 3}px`;
       usernameEl.style.animation = "_uGlitch 0.6s ease-in-out infinite alternate";
+      // Update gradient shadow if needed
+      if (window.COLOR_MODE === 'gradient') {
+        usernameEl.style.textShadow = `0 0 ${20 + fadeProgress * 20}px ${rgbStr(GRAD_TOP)}, 0 0 ${40 + fadeProgress * 30}px ${rgbStr(GRAD_MID)}`;
+      }
       window._giftAnimFrame = requestAnimationFrame(animate);
       return;
     }
@@ -1173,17 +1211,32 @@ function _playGiftAnimation(data, onDone) {
       usernameEl.style.fontFamily = "'Courier New',monospace";
       usernameEl.style.fontSize = "clamp(0.45rem,1.3vw,0.85rem)";
       usernameEl.style.fontWeight = "bold";
-      usernameEl.style.color = "#FFD700";
       usernameEl.style.letterSpacing = "0";
       usernameEl.style.whiteSpace = "pre";
       usernameEl.style.lineHeight = "1.15";
       usernameEl.style.textAlign = "center";
-      usernameEl.style.textShadow = "0 0 15px #FFD700, 0 0 30px #FF8C00, 0 0 45px #FF4500";
-      usernameEl.style.animation = "_gPulse 0.5s ease-in-out infinite alternate";
       usernameEl.style.maxWidth = "100vw";
       usernameEl.style.overflowX = "hidden";
       usernameEl.style.wordBreak = "keep-all";
-      usernameEl.textContent = data.username_ascii || `@${data.username}`;
+      // Use gradient colors if available
+      if (window.COLOR_MODE === 'gradient') {
+        const asciiText = data.username_ascii || `@${data.username}`;
+        const asciiLines = asciiText.split('\n');
+        let gradientHtml = '';
+        asciiLines.forEach((line, i) => {
+          const t = asciiLines.length <= 1 ? 0.5 : i / (asciiLines.length - 1);
+          const c = rgbStr(gradientColor(t));
+          gradientHtml += `<div style="color:${c};text-shadow:0 0 8px ${c}">${escapeHtml(line)}</div>`;
+        });
+        usernameEl.innerHTML = gradientHtml;
+        usernameEl.style.color = '';
+        usernameEl.style.textShadow = '';
+      } else {
+        usernameEl.textContent = data.username_ascii || `@${data.username}`;
+        usernameEl.style.color = "#FFD700";
+        usernameEl.style.textShadow = "0 0 15px #FFD700, 0 0 30px #FF8C00, 0 0 45px #FF4500";
+      }
+      usernameEl.style.animation = "_gPulse 0.5s ease-in-out infinite alternate";
       window._giftAnimFrame = requestAnimationFrame(animate);
       return;
     }

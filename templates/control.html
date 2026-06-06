@@ -1000,6 +1000,40 @@
   </div>
 </div>
 
+<!-- System Tools -->
+<div style="margin-top:20px;">
+  <div class="settings-section-title">🛠️ System Tools</div>
+  <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+    <button class="btn btn-outline btn-sm" onclick="clearCache()">🗑️ Hapus Cache</button>
+    <button class="btn btn-outline btn-sm" onclick="clearQueue()">📋 Hapus Queue</button>
+    <button class="btn btn-outline btn-sm" onclick="loadEnvFile()">📄 Lihat .env</button>
+  </div>
+  <div id="system-status" style="font-size:0.7rem;opacity:0.6;margin-top:6px;"></div>
+</div>
+
+<!-- .env Management -->
+<div id="env-section" style="margin-top:20px;display:none;">
+  <div class="settings-section-title">📄 Environment Variables (.env)</div>
+  <div style="margin-top:10px;">
+    <textarea id="env-content" style="width:100%;height:200px;background:#111;color:#0f0;font-family:monospace;font-size:0.7rem;border:1px solid #333;padding:8px;resize:vertical;" readonly></textarea>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-outline btn-sm" onclick="loadEnvFile()">🔄 Refresh</button>
+      <span id="env-status" style="font-size:0.7rem;opacity:0.6;"></span>
+    </div>
+  </div>
+</div>
+
+<!-- .env Update Form -->
+<div id="env-update-section" style="margin-top:15px;display:none;">
+  <div class="settings-section-title">✏️ Update .env</div>
+  <div style="margin-top:10px;display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center;">
+    <input id="env-key" placeholder="KEY_NAME" style="background:#111;color:#0f0;font-family:monospace;font-size:0.7rem;border:1px solid #333;padding:6px;">
+    <input id="env-value" placeholder="value" style="background:#111;color:#0f0;font-family:monospace;font-size:0.7rem;border:1px solid #333;padding:6px;">
+    <button class="btn btn-outline btn-sm" onclick="updateEnv()">💾 Simpan</button>
+  </div>
+  <div style="margin-top:6px;font-size:0.65rem;opacity:0.5;">
+    Contoh: XIAOMI_API_KEY | TELEGRAM_BOT_TOKEN
+
 <!-- Auto-Reply Settings -->
 <div style="margin-top:20px;">
   <div class="settings-section-title">💬 Auto-Reply & Riddles</div>
@@ -1479,6 +1513,68 @@ function applyLLMConfig() {
 function loadLLMStatus() {
   // Now handled by loadLLMModels() — kept for backward compat
   loadLLMModels();
+}
+
+// ── System Tools ──────────────────────────────────────────
+function clearCache() {
+  const statusEl = document.getElementById("system-status");
+  fetch(`${window.location.origin}/api/clear_cache`, {method:"POST"})
+    .then(r => r.json())
+    .then(d => {
+      statusEl.textContent = d.ok ? "✅ Cache dibersihkan!" : "❌ Gagal";
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    })
+    .catch(e => { statusEl.textContent = "❌ Error: " + e; });
+}
+
+function clearQueue() {
+  const statusEl = document.getElementById("system-status");
+  fetch(`${window.location.origin}/api/clear_queue`, {method:"POST"})
+    .then(r => r.json())
+    .then(d => {
+      statusEl.textContent = d.ok ? "✅ Queue dibersihkan!" : "❌ Gagal";
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    })
+    .catch(e => { statusEl.textContent = "❌ Error: " + e; });
+}
+
+function loadEnvFile() {
+  const section = document.getElementById("env-section");
+  const updateSection = document.getElementById("env-update-section");
+  const textarea = document.getElementById("env-content");
+  const statusEl = document.getElementById("env-status");
+  section.style.display = "block";
+  updateSection.style.display = "block";
+  fetch(`${window.location.origin}/api/env`)
+    .then(r => r.json())
+    .then(d => {
+      textarea.value = d.content || "(kosong)";
+      statusEl.textContent = `Path: ${d.path}`;
+    })
+    .catch(e => { statusEl.textContent = "❌ Error: " + e; });
+}
+
+function updateEnv() {
+  const key = document.getElementById("env-key").value.trim();
+  const value = document.getElementById("env-value").value.trim();
+  const statusEl = document.getElementById("env-status");
+  if (!key || !value) { statusEl.textContent = "❌ Key dan value harus diisi"; return; }
+  const body = {};
+  body[key] = value;
+  fetch(`${window.location.origin}/api/env/update`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  })
+    .then(r => r.json())
+    .then(d => {
+      statusEl.textContent = d.ok ? `✅ ${d.updated.join(", ")} tersimpan!` : "❌ Gagal";
+      document.getElementById("env-key").value = "";
+      document.getElementById("env-value").value = "";
+      loadEnvFile();
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    })
+    .catch(e => { statusEl.textContent = "❌ Error: " + e; });
 }
 
 // ── Logs ───────────────────────────────────────────────────
