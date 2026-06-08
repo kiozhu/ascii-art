@@ -453,7 +453,7 @@ auto_reply_settings = {
     "llm_enabled": False,
     "llm_api_key": "",
     "llm_group_id": "",
-    "llm_model": "MiniMax-M2.7",
+    "llm_model": "MiniMax-M3",
     "llm_base_url": "https://api.minimax.io/anthropic",
     # ── RTK (Rush Token Killer) settings ──
     # Goal: cut LLM token usage 70-90% while keeping UX smooth.
@@ -773,7 +773,8 @@ def _llm_request(messages, max_tokens=20, temperature=0.9, model_override=None, 
     Returns the text reply (str) or None on failure.
     """
     api_key = auto_reply_settings.get("llm_api_key", "").strip()
-    model = model_override or auto_reply_settings.get("llm_model", "MiniMax-M2.7")
+    base_url = auto_reply_settings.get("llm_base_url", "https://api.minimax.io/anthropic").strip().rstrip("/")
+    model = model_override or auto_reply_settings.get("llm_model", "MiniMax-M3")
 
     if not api_key:
         return None
